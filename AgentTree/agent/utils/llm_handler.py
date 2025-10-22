@@ -15,10 +15,18 @@ import os  # File system operations for data persistence
 import json  # JSON handling for prompt performance tracking
 from agent.utils import config  # Configuration module for model and prompt settings
 
-def get_executor_response(goal, document):
+def get_executor_response(goal, document, backpack=None):
     """Generates the next code improvement using the Executor prompt with self-improvement."""
+    # Format backpack context
+    backpack_context = ""
+    if backpack:
+        for i, item in enumerate(backpack):
+            backpack_context += f"**File {i+1}: {item.get('file_path', 'Unknown')}**\n"
+            backpack_context += f"Justification: {item.get('justification', 'N/A')}\n"
+            backpack_context += f"Code:\n{item.get('full_code', '')}\n\n"
+
     # Get base prompt
-    prompt = config.EXECUTOR_PROMPT_TEMPLATE.format(goal=goal, document=document)
+    prompt = config.EXECUTOR_PROMPT_TEMPLATE.format(goal=goal, document=document, backpack_context=backpack_context)
 
     # Add self-improvement context if we have historical data
     best_prompts = get_best_prompt_variations(limit=3)
@@ -34,9 +42,17 @@ def get_executor_response(goal, document):
     response = ollama.chat(model=config.MODEL, messages=[{'role': 'user', 'content': prompt}])
     return response['message']['content'].strip()
 
-def get_critic_score(goal, document):
+def get_critic_score(goal, document, backpack=None):
     """Evaluates the code so far using the Critic prompt."""
-    prompt = config.CRITIC_PROMPT_TEMPLATE.format(goal=goal, document=document)
+    # Format backpack context
+    backpack_context = ""
+    if backpack:
+        for i, item in enumerate(backpack):
+            backpack_context += f"**File {i+1}: {item.get('file_path', 'Unknown')}**\n"
+            backpack_context += f"Justification: {item.get('justification', 'N/A')}\n"
+            backpack_context += f"Code:\n{item.get('full_code', '')}\n\n"
+
+    prompt = config.CRITIC_PROMPT_TEMPLATE.format(goal=goal, document=document, backpack_context=backpack_context)
     response = ollama.chat(model=config.MODEL, messages=[{'role': 'user', 'content': prompt}])
     try:
         return int(response['message']['content'].strip())
@@ -269,6 +285,23 @@ def get_best_prompt_variations(limit=5):
             return []
     except Exception as e:
         return []
+
+def get_scout_response(goal, file_path, file_content):
+    """Generates a JSON response from the Scout prompt for analyzing code relevance."""
+    prompt = config.SCOUT_PROMPT_TEMPLATE.format(goal=goal, file_path=file_path, file_content=file_content)
+    response = ollama.chat(model=config.MODEL, messages=[{'role': 'user', 'content': prompt}])
+    try:
+        # Parse the JSON response from the LLM
+        import json
+        json_response = json.loads(response['message']['content'].strip())
+        return json_response
+    except json.JSONDecodeError:
+        # Fallback if JSON parsing fails
+        return {
+            "relevant": False,
+            "justification": "Failed to parse LLM response as JSON",
+            "key_elements": []
+        }
 
 def execute_code(code):
     """

@@ -46,7 +46,7 @@ def run_mcts_cycle(root_node):
 def expand_node(node):
     """Creates one new child node for expansion."""
     goal = config.INITIAL_GOAL
-    response = llm_handler.get_executor_response(goal, node.document_state)
+    response = llm_handler.get_executor_response(goal, node.document_state, node.backpack)
     new_code = response.strip()
 
     # Extract code from markdown if present (LLM might wrap in ```python blocks)
@@ -57,7 +57,7 @@ def expand_node(node):
 
     # For code generation, we replace the entire code state with the new version
     # rather than appending like we did with stories
-    new_node = Node(document_state=new_code, parent=node, plan=new_code)
+    new_node = Node(document_state=new_code, parent=node, plan=new_code, backpack=node.backpack)
     node.children.append(new_node)
 
 def simulate_node(node):
@@ -74,12 +74,19 @@ def simulate_node(node):
     base_score = llm_handler.evaluate_code_quality(node.document_state, execution_result, goal)
 
     # Get LLM critic score as well and combine for robustness
-    llm_score = llm_handler.get_critic_score(goal, node.document_state)
+    llm_score = llm_handler.get_critic_score(goal, node.document_state, node.backpack)
     combined_score = min(10, max(1, (base_score + llm_score) // 2))
 
     # Track this prompt/code combination for self-improvement
     # Extract the prompt that was used to generate this code
-    prompt_used = config.EXECUTOR_PROMPT_TEMPLATE.format(goal=goal, document=node.parent.document_state if node.parent else node.document_state)
+    backpack_context = ""
+    if node.backpack:
+        for i, item in enumerate(node.backpack):
+            backpack_context += f"**File {i+1}: {item.get('file_path', 'Unknown')}**\n"
+            backpack_context += f"Justification: {item.get('justification', 'N/A')}\n"
+            backpack_context += f"Code:\n{item.get('full_code', '')}\n\n"
+
+    prompt_used = config.EXECUTOR_PROMPT_TEMPLATE.format(goal=goal, document=node.parent.document_state if node.parent else node.document_state, backpack_context=backpack_context)
     llm_handler.track_prompt_performance(prompt_used, combined_score, goal, execution_result)
 
     return combined_score

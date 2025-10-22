@@ -9,6 +9,7 @@
 # - agent.utils.state_manager: To load and save its memory.
 # - agent.engine.node: To create the root of the search tree.
 # - agent.engine.mcts: To run the core "thinking" process.
+# - agent.utils.scout: To analyze the project and build the backpack.
 #
 
 import time
@@ -16,16 +17,21 @@ from agent.utils import config
 from agent.utils import state_manager
 from agent.engine.node import Node
 from agent.engine import mcts
+from agent.utils.scout import Scout
 
 def run():
     """The main, continuous loop that drives the agent's behavior."""
     print("--- Initializing Agent ---")
-    
+
     loaded_goal, loaded_doc = state_manager.load_document_on_startup()
-    
+
+    # Deploy the Scout to analyze the project and build the backpack
+    scout = Scout()
+    backpack = scout.scout_project(loaded_goal)
+
     if loaded_goal == config.INITIAL_GOAL and loaded_doc is not None:
         print("Previous session found. Loading state...")
-        root_node = Node(document_state=loaded_doc)
+        root_node = Node(document_state=loaded_doc, backpack=backpack)
     else:
         print("Starting a new session.")
         root_node = Node(document_state="""def fibonacci(n):
@@ -33,9 +39,10 @@ def run():
         return n
     return fibonacci(n-1) + fibonacci(n-2)
 
-# Test cases will be validated automatically""")
+# Test cases will be validated automatically""", backpack=backpack)
 
     print(f"Main Goal: {config.INITIAL_GOAL}")
+    print(f"Backpack built with {len(backpack)} relevant files.")
     
     turn_number = 1
     try:
