@@ -2,14 +2,14 @@
 
 ## Project Description
 
-AgentTree is an autonomous AI agent that uses Monte Carlo Tree Search (MCTS) to generate and improve Python code. The system employs two AI personalities - an Executor that generates new code solutions and a Critic that evaluates code quality and functionality - working together through the MCTS algorithm to explore and optimize programming solutions.
+AgentTree is an autonomous AI agent that uses Monte Carlo Tree Search (MCTS) to generate and improve Python code. The system employs multiple AI personalities including Executor (code generation), Critic (quality evaluation), Evaluator (performance assessment), Tracker (learning and analytics), and Scout (exploration) - working together through the MCTS algorithm to explore and optimize programming solutions.
 
 The agent builds code iteratively by expanding a search tree where each node represents a code state. The MCTS algorithm balances exploration and exploitation to find the most promising code variations, guided by actual code execution results and the Critic's quality assessments. The system maintains persistent memory, allowing it to resume code generation across sessions, and includes self-improvement mechanisms that learn from successful prompt patterns.
 
 ## Features
 
 - **MCTS-Powered Code Generation**: Uses Monte Carlo Tree Search to explore and optimize code development
-- **Dual AI Personality System**: Executor generates new code, Critic evaluates functionality and correctness
+- **Multi AI Personality System**: Executor generates new code, Critic evaluates functionality and correctness, Evaluator assesses performance, Tracker monitors learning, Scout explores new approaches
 - **Code Execution Testing**: Runs generated code safely to validate functionality
 - **Self-Improvement**: Learns from successful prompt patterns to improve future code generation
 - **Persistent Memory**: Saves and loads code progress between sessions
@@ -69,7 +69,7 @@ AgentTree follows a modular, tree-based architecture designed for autonomous cod
 
 ### Core Architecture Components
 
-The architecture consists of four main layers, each handling distinct responsibilities:
+The architecture consists of five main layers, each handling distinct responsibilities:
 
 #### 1. **Orchestration Layer** (`agent/`)
 - **Main Entry Point** (`main.py`): Simple launcher that initializes the agent
@@ -79,12 +79,18 @@ The architecture consists of four main layers, each handling distinct responsibi
 - **MCTS Engine** (`mcts.py`): Implements the four-phase MCTS algorithm (Selection, Expansion, Simulation, Backpropagation)
 - **Node Structure** (`node.py`): Tree nodes containing code state, execution results, and performance metrics
 
-#### 3. **Intelligence Layer** (`agent/utils/`)
-- **LLM Handler** (`llm_handler.py`): Dual AI personality system (Executor for generation, Critic for evaluation)
+#### 3. **Intelligence Layer** (`agent/intelligence/`)
+- **LLM Executor** (`llm_executor.py`): Generates new code solutions and variations
+- **LLM Critic** (`llm_critic.py`): Evaluates code quality, correctness, and functionality
+- **LLM Evaluator** (`llm_evaluator.py`): Assesses performance metrics and optimization opportunities
+- **LLM Tracker** (`llm_tracker.py`): Monitors learning patterns and analytics
+- **Scout** (`scout.py`): Explores new code approaches and innovative solutions
+
+#### 4. **Utilities Layer** (`agent/utils/`)
 - **State Manager** (`state_manager.py`): Persistent memory management across sessions
 - **Configuration** (`config.py`): Centralized settings, prompt templates, and system parameters
 
-#### 4. **Execution Environment**
+#### 5. **Execution Environment**
 - **Safe Code Execution**: Sandboxed subprocess execution with timeout protection
 - **Test Case Validation**: Automatic parsing and running of goal-embedded test cases
 - **Performance Tracking**: Self-improvement through historical prompt performance analysis
@@ -103,7 +109,7 @@ The agent's operation follows a cyclical data flow pattern:
          ▼                        ▼                        ▼
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │  State Memory   │◀───│   LLM Calls     │    │  Execution     │
-│ (state_manager) │    │ (llm_handler)   │    │  Results       │
+│ (state_manager) │    │ (intelligence)  │    │  Results       │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
@@ -111,24 +117,27 @@ The agent's operation follows a cyclical data flow pattern:
 
 1. **Initialization**: Load previous session state or start with default code
 2. **MCTS Selection**: Traverse tree using UCB1 formula to find promising nodes
-3. **Expansion**: Generate new code variations via Executor LLM prompts
-4. **Simulation**: Execute code safely and evaluate with combined metrics:
+3. **Expansion**: Generate new code variations via Executor LLM prompts, with Scout exploring alternative approaches
+4. **Simulation**: Execute code safely and evaluate with multi-dimensional metrics:
    - Runtime execution results
    - Test case pass rates
    - Critic LLM quality assessment
+   - Evaluator performance analysis
+   - Tracker learning insights
 5. **Backpropagation**: Update tree statistics up to root node
 6. **Commitment**: Select best child node as next code state
 7. **Persistence**: Save progress and repeat cycle
 
 ### Key Design Patterns
 
-#### Dual AI Personality Pattern
+#### Multi AI Personality Pattern
 ```python
-# Executor generates new code variations
-response = get_executor_response(goal, current_code)
-
-# Critic evaluates quality and functionality
-score = get_critic_score(goal, generated_code)
+# Multiple AI personalities work together
+response = llm_executor.generate_code(goal, current_code)
+critic_score = llm_critic.evaluate_quality(goal, generated_code)
+evaluator_score = llm_evaluator.assess_performance(generated_code)
+tracker_insights = llm_tracker.analyze_patterns()
+scout_exploration = scout.explore_alternatives(goal)
 ```
 
 #### Safe Execution Pattern
@@ -160,17 +169,20 @@ ucb_value = (node.value / node.visits) + math.sqrt(2 * math.log(parent.visits) /
 #### Expansion Phase
 Generates new code variations when reaching unexplored nodes:
 ```python
-new_code = llm_handler.get_executor_response(goal, node.document_state)
-new_node = Node(document_state=new_code, parent=node, plan=new_code)
+new_code = llm_executor.generate_code(goal, node.document_state)
+scout_variations = scout.explore_alternatives(goal, node.document_state)
+combined_variations = [new_code] + scout_variations
+new_nodes = [Node(document_state=variation, parent=node, plan=variation) for variation in combined_variations]
 ```
 
 #### Simulation Phase
-Combines actual execution with AI evaluation:
+Combines actual execution with multi-dimensional AI evaluation:
 ```python
 execution_result = execute_code(node.document_state)
-score = evaluate_code_quality(node.document_state, execution_result, goal)
-llm_score = get_critic_score(goal, node.document_state)
-combined_score = (score + llm_score) // 2
+critic_score = llm_critic.evaluate_quality(node.document_state, goal)
+evaluator_score = llm_evaluator.assess_performance(node.document_state, execution_result)
+tracker_insights = llm_tracker.analyze_learning(node.document_state, execution_result)
+combined_score = (execution_result.score + critic_score + evaluator_score + tracker_insights) // 4
 ```
 
 #### Backpropagation Phase
@@ -211,6 +223,13 @@ The agent maintains a learning loop through prompt performance tracking:
 - **Caching**: Execution results and prompt responses can be cached for efficiency
 - **Pruning**: Tree size management through selective node retention
 - **Batch Processing**: Multiple test cases can be evaluated simultaneously
+
+## Architectural Guidelines
+
+- **File Size**: No file you create or modify may exceed 300 lines.
+- **Refactoring Trigger**: If a file approaches this limit, immediately refactor by moving cohesive functions to a new, well-named module.
+- **The Golden Rule - Import Signposts**: For every custom module you import, you must add a comment on the same line explaining that module's purpose and its role in the current file. This is the most important rule.
+- **Directory Cohesion and Size**: A directory should represent a single, cohesive responsibility. When a directory contains more than seven files, or its files serve multiple purposes, it must be refactored by creating more specific, well-named subdirectories.
 
 ### Configuration
 

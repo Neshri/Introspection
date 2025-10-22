@@ -1,8 +1,8 @@
-import os
-import ast
-import json
-import ollama
-from agent.utils import config
+import os  # File system operations for directory traversal and file reading
+import ast  # Abstract syntax tree parsing for code analysis and element extraction
+import json  # JSON handling for data serialization (not currently used but may be needed)
+import ollama  # LLM interface for semantic analysis of code relevance
+from agent.utils import config  # Configuration settings for model selection and parameters
 
 class Scout:
     def scout_project(self, goal: str) -> list[dict]:
@@ -71,3 +71,21 @@ Respond with 'Yes' or 'No' followed by a brief justification.
                 for alias in node.names:
                     elements.append(alias.name)
         return elements
+        return elements
+
+def get_scout_response(goal, file_path, file_content):
+    """Generates a JSON response from the Scout prompt for analyzing code relevance."""
+    prompt = config.SCOUT_PROMPT_TEMPLATE.format(goal=goal, file_path=file_path, file_content=file_content)
+    response = ollama.chat(model=config.MODEL, messages=[{'role': 'user', 'content': prompt}])
+    try:
+        # Parse the JSON response from the LLM
+        import json  # JSON parsing for LLM response validation
+        json_response = json.loads(response['message']['content'].strip())
+        return json_response
+    except json.JSONDecodeError:
+        # Fallback if JSON parsing fails
+        return {
+            "relevant": False,
+            "justification": "Failed to parse LLM response as JSON",
+            "key_elements": []
+        }

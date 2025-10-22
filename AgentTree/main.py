@@ -7,7 +7,7 @@
 # - agent.agent: The main trunk of the application, containing the core run loop.
 #
 
-from agent import agent
+from agent import agent  # Import the main agent module containing the core run loop for the application
 
 if __name__ == "__main__":
     agent.run()

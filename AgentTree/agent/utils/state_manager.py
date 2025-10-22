@@ -7,11 +7,11 @@
 # - agent.utils.config: To get the filenames for the memory files.
 #
 
-import os  # File system operations for checking file existence and paths
-import shutil  # File copying and moving for state persistence
-import re  # Regular expressions for parsing file content
-import datetime  # Timestamp generation for state files
-from agent.utils import config  # Configuration module for memory file paths
+import os  # File system operations for checking file existence and managing file paths
+import shutil  # File operations for renaming and backing up state files
+import re  # Regular expressions for extracting goal and document content from saved files
+import datetime  # Date and time utilities for timestamping saved state files
+from agent.utils import config  # Configuration module for memory file paths and settings
 
 def load_document_on_startup():
     """

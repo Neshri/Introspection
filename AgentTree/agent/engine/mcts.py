@@ -6,14 +6,20 @@
 #
 # It uses the following modules:
 # - agent.engine.node: The data structure for the tree.
-# - agent.utils.llm_handler: To call the LLM for expansion and simulation.
+# - agent.intelligence.llm_executor: For code generation and execution.
+# - agent.intelligence.llm_evaluator: For code quality evaluation.
+# - agent.intelligence.llm_critic: For LLM-based code criticism.
+# - agent.intelligence.llm_tracker: For performance tracking.
 # - agent.utils.config: For MCTS-specific settings like iteration count.
 #
 
-import math
-from agent.engine.node import Node
-from agent.utils import llm_handler
-from agent.utils import config
+import math  # Standard library for mathematical operations, used in UCB1 formula
+from agent.engine.node import Node  # Node class for tree data structure in MCTS
+from agent.intelligence.llm_executor import get_executor_response, execute_code  # Code generation and execution functions
+from agent.intelligence.llm_evaluator import evaluate_code_quality  # Code quality evaluation
+from agent.intelligence.llm_critic import get_critic_score  # LLM-based code criticism
+from agent.intelligence.llm_tracker import track_prompt_performance  # Performance tracking for self-improvement
+from agent.utils import config  # Configuration settings for MCTS parameters and goals
 
 def run_mcts_cycle(root_node):
     """Performs one full "thinking" cycle and returns the best next node."""
@@ -46,7 +52,7 @@ def run_mcts_cycle(root_node):
 def expand_node(node):
     """Creates one new child node for expansion."""
     goal = config.INITIAL_GOAL
-    response = llm_handler.get_executor_response(goal, node.document_state, node.backpack)
+    response = get_executor_response(goal, node.document_state, node.backpack)
     new_code = response.strip()
 
     # Extract code from markdown if present (LLM might wrap in ```python blocks)
@@ -65,16 +71,16 @@ def simulate_node(node):
     goal = config.INITIAL_GOAL
 
     # First execute the code to get actual runtime results
-    execution_result = llm_handler.execute_code(node.document_state)
+    execution_result = execute_code(node.document_state)
 
     # Store execution results in the node for later analysis
     node.execution_result = execution_result
 
     # Calculate score using the general evaluation framework
-    base_score = llm_handler.evaluate_code_quality(node.document_state, execution_result, goal)
+    base_score = evaluate_code_quality(node.document_state, execution_result, goal)
 
     # Get LLM critic score as well and combine for robustness
-    llm_score = llm_handler.get_critic_score(goal, node.document_state, node.backpack)
+    llm_score = get_critic_score(goal, node.document_state, node.backpack)
     combined_score = min(10, max(1, (base_score + llm_score) // 2))
 
     # Track this prompt/code combination for self-improvement
@@ -87,7 +93,7 @@ def simulate_node(node):
             backpack_context += f"Code:\n{item.get('full_code', '')}\n\n"
 
     prompt_used = config.EXECUTOR_PROMPT_TEMPLATE.format(goal=goal, document=node.parent.document_state if node.parent else node.document_state, backpack_context=backpack_context)
-    llm_handler.track_prompt_performance(prompt_used, combined_score, goal, execution_result)
+    track_prompt_performance(prompt_used, combined_score, goal, execution_result)
 
     return combined_score
 
