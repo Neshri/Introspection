@@ -5,40 +5,45 @@
 #
 
 MODEL = 'gemma3:4b-it-qat'
-INITIAL_GOAL = "Write a short, engaging story about a robot who discovers music."
+INITIAL_GOAL = "Write a Python function fibonacci(n) that returns the nth Fibonacci number. Test cases: fibonacci(0) should return 0, fibonacci(1) should return 1, fibonacci(5) should return 5, fibonacci(10) should return 55."
 MCTS_ITERATIONS_PER_STEP = 10
 
 CURRENT_DOC_FILENAME = "agent_memory_current.txt"
 PREVIOUS_DOC_FILENAME = "agent_memory_previous.txt"
 
+# Self-improvement tracking
+PROMPT_PERFORMANCE_LOG = "prompt_performance.json"
+IMPROVEMENT_HISTORY = "improvement_history.txt"
+
 EXECUTOR_PROMPT_TEMPLATE = """
-You are a creative Executor. Your job is to generate the *next logical paragraph or section* to continue the story.
+You are a Code Executor. Your job is to generate or improve Python code to accomplish the programming goal.
 
 **Main Goal:** {goal}
-**Working Document (Current Story):**
+**Current Code State:**
 ---
 {document}
 ---
 
 **Task:**
-Write the next single paragraph to continue the story. Be creative and build upon what is already there. Your output must be ONLY the new paragraph.
+Generate the next improvement or complete code solution. Focus on correctness, efficiency, and best practices. Your output must be ONLY the complete Python code (no explanations or markdown).
 """
 
 CRITIC_PROMPT_TEMPLATE = """
-You are a literary Critic. Your job is to evaluate the quality of a story-in-progress.
+You are a Code Critic. Your job is to evaluate the quality and functionality of Python code.
 
 **Main Goal:** {goal}
 
-**Story So Far:**
+**Code So Far:**
 ---
 {document}
 ---
 
 **Task:**
-Read the story so far. On a scale of 1 to 10, how engaging, coherent, and promising is it?
-- 1: A complete dead end, incoherent.
-- 5: Has some potential but is flawed.
-- 10: Brilliant, a compelling foundation for a great story.
+Execute and test this code mentally. On a scale of 1 to 10, rate its quality and correctness:
+- 1: Code has syntax errors, doesn't run, or completely fails the goal.
+- 5: Code runs but has bugs, inefficiencies, or incomplete implementation.
+- 10: Perfect code that fully achieves the goal with excellent implementation.
 
+Consider: syntax correctness, logical accuracy, efficiency, and goal achievement.
 Your output must be ONLY a single integer score from 1 to 10.
 """

@@ -28,7 +28,12 @@ def run():
         root_node = Node(document_state=loaded_doc)
     else:
         print("Starting a new session.")
-        root_node = Node(document_state="The story begins with a lone robot on an alien world.")
+        root_node = Node(document_state="""def fibonacci(n):
+    if n <= 1:
+        return n
+    return fibonacci(n-1) + fibonacci(n-2)
+
+# Test cases will be validated automatically""")
 
     print(f"Main Goal: {config.INITIAL_GOAL}")
     

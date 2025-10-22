@@ -2,17 +2,19 @@
 
 ## Project Description
 
-AgentTree is an autonomous AI agent that uses Monte Carlo Tree Search (MCTS) to generate creative stories. The system employs two AI personalities - an Executor that generates new story paragraphs and a Critic that evaluates story quality - working together through the MCTS algorithm to explore and optimize narrative development.
+AgentTree is an autonomous AI agent that uses Monte Carlo Tree Search (MCTS) to generate and improve Python code. The system employs two AI personalities - an Executor that generates new code solutions and a Critic that evaluates code quality and functionality - working together through the MCTS algorithm to explore and optimize programming solutions.
 
-The agent builds stories iteratively by expanding a search tree where each node represents a story state. The MCTS algorithm balances exploration and exploitation to find the most promising story continuations, guided by the Critic's quality assessments. The system maintains persistent memory, allowing it to resume story generation across sessions.
+The agent builds code iteratively by expanding a search tree where each node represents a code state. The MCTS algorithm balances exploration and exploitation to find the most promising code variations, guided by actual code execution results and the Critic's quality assessments. The system maintains persistent memory, allowing it to resume code generation across sessions, and includes self-improvement mechanisms that learn from successful prompt patterns.
 
 ## Features
 
-- **MCTS-Powered Story Generation**: Uses Monte Carlo Tree Search to explore and optimize story development
-- **Dual AI Personality System**: Executor generates new paragraphs, Critic evaluates quality on a 1-10 scale
-- **Persistent Memory**: Saves and loads story progress between sessions
-- **Iterative Refinement**: Builds stories paragraph by paragraph through multiple search cycles
-- **Ollama Integration**: Leverages local LLM models for creative writing and evaluation
+- **MCTS-Powered Code Generation**: Uses Monte Carlo Tree Search to explore and optimize code development
+- **Dual AI Personality System**: Executor generates new code, Critic evaluates functionality and correctness
+- **Code Execution Testing**: Runs generated code safely to validate functionality
+- **Self-Improvement**: Learns from successful prompt patterns to improve future code generation
+- **Persistent Memory**: Saves and loads code progress between sessions
+- **Iterative Refinement**: Builds code through multiple search cycles with real execution feedback
+- **Ollama Integration**: Leverages local LLM models for code generation and evaluation
 
 ## Installation
 
@@ -42,52 +44,178 @@ The agent builds stories iteratively by expanding a search tree where each node 
 
 ## Usage
 
-Run the story generation agent using:
+Run the code generation agent using:
 
 ```bash
 python AgentTree/main.py
 ```
 
-The agent will start with a default story goal and begin generating content using MCTS. Monitor the progress through console output showing:
+The agent will start with a default programming goal (Monte Carlo pi calculation) and begin generating code using MCTS. Monitor the progress through console output showing:
 - Current turn number
-- Story paragraphs being committed to the narrative
-- MCTS cycle progress
+- Code being committed to the solution
+- MCTS cycle progress and execution results
+- Performance metrics and improvement tracking
 
 ### Interacting with the Agent
 
-- **Monitoring**: Observe the story development through console output
+- **Monitoring**: Observe code development, execution results, and improvement metrics
 - **Interrupting**: Use Ctrl+C to stop the agent and save current progress
-- **Resuming**: The agent automatically loads previous sessions on restart
+- **Resuming**: The agent automatically loads previous code sessions on restart
+- **Self-Improvement**: Agent learns from successful patterns and adapts its approach
 
-## Technical Details
+## Architecture Overview
 
-### Architecture Components
+AgentTree follows a modular, tree-based architecture designed for autonomous code generation through Monte Carlo Tree Search (MCTS). The system is organized into a hierarchical structure where each component plays a specific role in the iterative code refinement process.
 
-- **MCTS Engine**: Core search algorithm that explores story continuations
-- **Node Structure**: Tree nodes representing story states with document content and metadata
-- **LLM Handler**: Manages communication with Ollama for Executor and Critic prompts
-- **State Manager**: Handles persistent memory loading and saving
-- **Configuration**: Centralized settings for model, goals, and MCTS parameters
+### Core Architecture Components
 
-### Key Functions
+The architecture consists of four main layers, each handling distinct responsibilities:
 
-- `run_mcts_cycle()`: Performs one full MCTS thinking cycle and returns best next node
-- `expand_node()`: Creates new child nodes by generating story paragraphs
-- `simulate_node()`: Evaluates story quality using the Critic
-- `backpropagate()`: Updates tree statistics after evaluation
-- `load_document_on_startup()`: Restores previous session state
-- `save_document_state()`: Persists current story progress
+#### 1. **Orchestration Layer** (`agent/`)
+- **Main Entry Point** (`main.py`): Simple launcher that initializes the agent
+- **Agent Core** (`agent.py`): Continuous loop managing the overall agent lifecycle, turn progression, and state persistence
 
-### MCTS Process
+#### 2. **Search Engine Layer** (`agent/engine/`)
+- **MCTS Engine** (`mcts.py`): Implements the four-phase MCTS algorithm (Selection, Expansion, Simulation, Backpropagation)
+- **Node Structure** (`node.py`): Tree nodes containing code state, execution results, and performance metrics
 
-1. **Selection**: Navigate tree using UCB1 formula to balance exploration/exploitation
-2. **Expansion**: Generate new story paragraph when reaching leaf node
-3. **Simulation**: Evaluate new story state with Critic (1-10 scale)
-4. **Backpropagation**: Update visit counts and values up the tree
+#### 3. **Intelligence Layer** (`agent/utils/`)
+- **LLM Handler** (`llm_handler.py`): Dual AI personality system (Executor for generation, Critic for evaluation)
+- **State Manager** (`state_manager.py`): Persistent memory management across sessions
+- **Configuration** (`config.py`): Centralized settings, prompt templates, and system parameters
+
+#### 4. **Execution Environment**
+- **Safe Code Execution**: Sandboxed subprocess execution with timeout protection
+- **Test Case Validation**: Automatic parsing and running of goal-embedded test cases
+- **Performance Tracking**: Self-improvement through historical prompt performance analysis
+
+### Data Flow Architecture
+
+The agent's operation follows a cyclical data flow pattern:
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Agent Loop    │───▶│   MCTS Cycle    │───▶│   Code State    │
+│   (agent.py)    │    │   (mcts.py)     │    │   Updates       │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                        │                        │
+         │                        │                        │
+         ▼                        ▼                        ▼
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│  State Memory   │◀───│   LLM Calls     │    │  Execution     │
+│ (state_manager) │    │ (llm_handler)   │    │  Results       │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
+#### Detailed Data Flow:
+
+1. **Initialization**: Load previous session state or start with default code
+2. **MCTS Selection**: Traverse tree using UCB1 formula to find promising nodes
+3. **Expansion**: Generate new code variations via Executor LLM prompts
+4. **Simulation**: Execute code safely and evaluate with combined metrics:
+   - Runtime execution results
+   - Test case pass rates
+   - Critic LLM quality assessment
+5. **Backpropagation**: Update tree statistics up to root node
+6. **Commitment**: Select best child node as next code state
+7. **Persistence**: Save progress and repeat cycle
+
+### Key Design Patterns
+
+#### Dual AI Personality Pattern
+```python
+# Executor generates new code variations
+response = get_executor_response(goal, current_code)
+
+# Critic evaluates quality and functionality
+score = get_critic_score(goal, generated_code)
+```
+
+#### Safe Execution Pattern
+```python
+# Isolated subprocess execution with resource limits
+result = subprocess.run(['python', temp_file],
+                       capture_output=True,
+                       timeout=30,
+                       cwd=temp_dir)
+```
+
+#### Self-Improvement Pattern
+```python
+# Learn from successful prompt patterns
+best_prompts = get_best_prompt_variations(limit=3)
+# Adapt future prompts based on historical performance
+```
+
+### MCTS Algorithm Implementation
+
+The MCTS implementation follows the standard four-phase algorithm with code-specific adaptations:
+
+#### Selection Phase
+Uses UCB1 formula to balance exploration/exploitation:
+```python
+ucb_value = (node.value / node.visits) + math.sqrt(2 * math.log(parent.visits) / node.visits)
+```
+
+#### Expansion Phase
+Generates new code variations when reaching unexplored nodes:
+```python
+new_code = llm_handler.get_executor_response(goal, node.document_state)
+new_node = Node(document_state=new_code, parent=node, plan=new_code)
+```
+
+#### Simulation Phase
+Combines actual execution with AI evaluation:
+```python
+execution_result = execute_code(node.document_state)
+score = evaluate_code_quality(node.document_state, execution_result, goal)
+llm_score = get_critic_score(goal, node.document_state)
+combined_score = (score + llm_score) // 2
+```
+
+#### Backpropagation Phase
+Updates statistics throughout the tree:
+```python
+while temp_node:
+    temp_node.visits += 1
+    temp_node.value += score
+    temp_node = temp_node.parent
+```
+
+### Self-Improvement System
+
+The agent maintains a learning loop through prompt performance tracking:
+
+- **Performance Logging**: JSON-based storage of prompt effectiveness metrics
+- **Success Pattern Analysis**: Identifies high-performing prompt variations
+- **Adaptive Prompt Engineering**: Injects successful patterns into future generations
+- **Historical Learning**: Maintains rolling window of recent performance data
+
+### Key Insights
+
+#### Architectural Strengths
+- **Modular Design**: Clear separation of concerns enables easy extension and maintenance
+- **Persistent State**: Session resumption prevents loss of progress
+- **Safe Execution**: Sandboxed code running prevents system compromise
+- **Dual Evaluation**: Combined runtime and AI assessment provides robust quality metrics
+- **Self-Learning**: Continuous improvement through performance feedback loops
+
+#### Technical Trade-offs
+- **Computational Cost**: MCTS exploration requires multiple LLM calls per cycle
+- **Memory Usage**: Growing search tree demands efficient pruning strategies
+- **Execution Time**: Safe subprocess execution adds overhead compared to direct evaluation
+- **Prompt Complexity**: Self-improvement system increases prompt engineering complexity
+
+#### Scalability Considerations
+- **Parallelization**: MCTS phases can be distributed across multiple processes
+- **Caching**: Execution results and prompt responses can be cached for efficiency
+- **Pruning**: Tree size management through selective node retention
+- **Batch Processing**: Multiple test cases can be evaluated simultaneously
 
 ### Configuration
 
 - **Model**: gemma3:4b-it-qat via Ollama
 - **MCTS Iterations**: 10 cycles per turn
-- **Goal**: Write engaging story about robot discovering music
+- **Goal**: Write Python function to calculate pi using Monte Carlo method
 - **Memory**: agent_memory_current.txt and agent_memory_previous.txt
+- **Performance Logs**: prompt_performance.json and improvement_history.txt

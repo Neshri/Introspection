@@ -7,11 +7,11 @@
 # - agent.utils.config: To get the filenames for the memory files.
 #
 
-import os
-import shutil
-import re
-import datetime
-from agent.utils import config
+import os  # File system operations for checking file existence and paths
+import shutil  # File copying and moving for state persistence
+import re  # Regular expressions for parsing file content
+import datetime  # Timestamp generation for state files
+from agent.utils import config  # Configuration module for memory file paths
 
 def load_document_on_startup():
     """
@@ -37,15 +37,16 @@ def load_document_on_startup():
         return None, None
 
 def save_document_state(document_content, current_goal):
-    """Saves the current working document and goal, and rotates the previous version."""
+    """Saves the current working code project and goal, and rotates the previous version."""
     try:
         if os.path.exists(config.CURRENT_DOC_FILENAME):
             shutil.move(config.CURRENT_DOC_FILENAME, config.PREVIOUS_DOC_FILENAME)
         with open(config.CURRENT_DOC_FILENAME, "w", encoding="utf-8") as f:
-            f.write(f"--- Agent Memory State ---\n")
+            f.write(f"--- Agent Code Generation State ---\n")
             f.write(f"Timestamp: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"Goal: {current_goal}\n\n")
-            f.write(f"--- Document Content ---\n")
+            f.write(f"--- Code Content ---\n")
             f.write(document_content)
+            f.write("\n\n--- End of Code ---\n")
     except Exception as e:
-        print(f"\n[!] Error saving document state: {e}")
+        print(f"\n[!] Error saving code state: {e}")

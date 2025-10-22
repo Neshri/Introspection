@@ -47,21 +47,42 @@ def expand_node(node):
     """Creates one new child node for expansion."""
     goal = config.INITIAL_GOAL
     response = llm_handler.get_executor_response(goal, node.document_state)
-    new_paragraph = response.strip()
+    new_code = response.strip()
 
-    new_document_state = node.document_state + "\n\n" + new_paragraph
-    new_node = Node(document_state=new_document_state, parent=node, plan=new_paragraph)
+    # Extract code from markdown if present (LLM might wrap in ```python blocks)
+    if new_code.startswith('```python'):
+        new_code = new_code.replace('```python', '').replace('```', '').strip()
+    elif new_code.startswith('```'):
+        new_code = new_code.replace('```', '').strip()
+
+    # For code generation, we replace the entire code state with the new version
+    # rather than appending like we did with stories
+    new_node = Node(document_state=new_code, parent=node, plan=new_code)
     node.children.append(new_node)
 
 def simulate_node(node):
-    """Gets a quality score for the node."""
+    """Gets a quality score for the node by executing and evaluating the code."""
     goal = config.INITIAL_GOAL
-    response = llm_handler.get_critic_score(goal, node.document_state)
-    try:
-        score = int(response)
-    except ValueError:
-        score = 1
-    return score
+
+    # First execute the code to get actual runtime results
+    execution_result = llm_handler.execute_code(node.document_state)
+
+    # Store execution results in the node for later analysis
+    node.execution_result = execution_result
+
+    # Calculate score using the general evaluation framework
+    base_score = llm_handler.evaluate_code_quality(node.document_state, execution_result, goal)
+
+    # Get LLM critic score as well and combine for robustness
+    llm_score = llm_handler.get_critic_score(goal, node.document_state)
+    combined_score = min(10, max(1, (base_score + llm_score) // 2))
+
+    # Track this prompt/code combination for self-improvement
+    # Extract the prompt that was used to generate this code
+    prompt_used = config.EXECUTOR_PROMPT_TEMPLATE.format(goal=goal, document=node.parent.document_state if node.parent else node.document_state)
+    llm_handler.track_prompt_performance(prompt_used, combined_score, goal, execution_result)
+
+    return combined_score
 
 def backpropagate(node, score):
     """Updates the stats all the way up the tree."""
