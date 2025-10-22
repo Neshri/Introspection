@@ -8,8 +8,8 @@ MODEL = 'gemma3:4b-it-qat'
 INITIAL_GOAL = "Write a short, engaging story about a robot who discovers music."
 MCTS_ITERATIONS_PER_STEP = 10
 
-CURRENT_DOC_FILENAME = "../agent_memory_current.txt"
-PREVIOUS_DOC_FILENAME = "../agent_memory_previous.txt"
+CURRENT_DOC_FILENAME = "agent_memory_current.txt"
+PREVIOUS_DOC_FILENAME = "agent_memory_previous.txt"
 
 EXECUTOR_PROMPT_TEMPLATE = """
 You are a creative Executor. Your job is to generate the *next logical paragraph or section* to continue the story.
