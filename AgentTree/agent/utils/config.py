@@ -4,7 +4,7 @@
 # It centralizes settings for easy modification.
 #
 
-MODEL = 'gemma3:12b-it-qat'
+MODEL = 'gemma3:4b-it-qat'
 INITIAL_GOAL = "Write a short, engaging story about a robot who discovers music."
 MCTS_ITERATIONS_PER_STEP = 10
 
