@@ -5,60 +5,146 @@ import datetime
 import re
 import os
 import shutil
+import math # Needed for MCTS selection
 
 # --- Configuration ---
 MODEL = 'gemma3:12b-it-qat'
 INITIAL_GOAL = "Write a short, engaging story about a robot who discovers music."
 CURRENT_DOC_FILENAME = "agent_memory_current.txt"
 PREVIOUS_DOC_FILENAME = "agent_memory_previous.txt"
+MCTS_ITERATIONS_PER_STEP = 10 # How many "futures" to imagine before taking a step
 
-# --- PROMPTS (MOVED TO GLOBAL SCOPE) ---
+# --- NEW: A simple class for our search tree nodes ---
+class Node:
+    def __init__(self, document_state, parent=None, plan=""):
+        self.document_state = document_state
+        self.parent = parent
+        self.plan_that_led_here = plan # The action that created this node
+        self.children = []
+        self.visits = 0
+        self.value = 0.0 # From 1-10, the average score of this path
+
+# --- PROMPTS (Repurposed for MCTS) ---
+# The Executor is now our "Expansion" operator
 EXECUTOR_PROMPT_TEMPLATE = """
-You are the Executor. You have two modes: PLANNING and EXECUTING.
+You are a creative Executor. Your job is to generate the *next logical paragraph or section* to continue the story.
 
-**Current Time:** {timestamp}
 **Main Goal:** {goal}
-
-**Working Document (Current Project State):**
+**Working Document (Current Story):**
 ---
 {document}
 ---
 
-**Previous Plan:** "{plan}"
-**Critique of Plan:** "{critique}"
-
 **Task:**
-{task}
+Write the next single paragraph to continue the story. Be creative and build upon what is already there. Your output must be ONLY the new paragraph.
 """
 
+# The Critic is now our "Simulation" (or evaluation) operator
 CRITIC_PROMPT_TEMPLATE = """
-You are the Critic. Your job is to evaluate the Executor's plan for alignment with the goal and the working document.
+You are a literary Critic. Your job is to evaluate the quality of a story-in-progress.
 
-**Current Time:** {timestamp}
 **Main Goal:** {goal}
 
-**Working Document (Current Project State):**
+**Story So Far:**
 ---
 {document}
 ---
 
-**Proposed Step by Executor:**
-"{plan}"
-
 **Task:**
-Critique the proposed step. Check for flaws and ensure it builds upon the Working Document.
-- If the plan is a good *next step in planning*, critique it and suggest refinements.
-- If the plan is solid and ready to be *acted upon*, respond with the keyword "[EXECUTE]" followed by your approval. For example: "[EXECUTE] The plan is sound. This is the logical next action to build the story."
+Read the story so far. On a scale of 1 to 10, how engaging, coherent, and promising is it?
+- 1: A complete dead end, incoherent.
+- 5: Has some potential but is flawed.
+- 10: Brilliant, a compelling foundation for a great story.
+
+Your output must be ONLY a single integer score from 1 to 10.
 """
 
-# --- Shared State for Threads ---
-agent_state = {
-    'goal': INITIAL_GOAL,
-    'running': True
-}
+# --- Shared State ---
+agent_state = {'goal': INITIAL_GOAL, 'running': True}
 
-# (The rest of the functions are correct and do not need changes)
 
+def main_agent_loop():
+    """The main loop, now structured around MCTS."""
+    
+    local_goal = agent_state['goal']
+    
+    print("--- 🚀 Initializing Agent ---")
+    _, loaded_doc = load_document_on_startup(CURRENT_DOC_FILENAME) # Simplified loading
+    
+    if loaded_doc:
+        print("✅ Previous session found. Loading state...")
+        root_node = Node(document_state=loaded_doc)
+    else:
+        print("✨ Starting a new session.")
+        root_node = Node(document_state="The story begins.")
+
+    print(f"🎯 Main Goal: {local_goal}")
+    print("Agent is now using MCTS. It will 'think' before each step.")
+    
+    turn_number = 1
+    while agent_state['running']:
+        print(f"\n--- Turn {turn_number} (Thinking for {MCTS_ITERATIONS_PER_STEP} iterations) ---")
+        
+        # This is the MCTS "thinking" loop
+        for i in range(MCTS_ITERATIONS_PER_STEP):
+            print(f"\r🤔 Thinking... [{i+1}/{MCTS_ITERATIONS_PER_STEP}]", end="")
+            
+            # 1. SELECTION: Find the most promising path to explore
+            current_node = root_node
+            while current_node.children:
+                # Use UCB1 formula to balance exploration and exploitation
+                current_node = max(current_node.children, key=lambda n: (n.value / n.visits) + math.sqrt(2 * math.log(current_node.visits) / n.visits) if n.visits > 0 else float('inf'))
+
+            # 2. EXPANSION: If we've reached a leaf, create one new child node
+            if current_node.visits > 0 or current_node == root_node:
+                executor_prompt = EXECUTOR_PROMPT_TEMPLATE.format(goal=local_goal, document=current_node.document_state)
+                response = ollama.chat(model=MODEL, messages=[{'role': 'user', 'content': executor_prompt}])
+                new_paragraph = response['message']['content'].strip()
+                
+                new_document_state = current_node.document_state + "\n\n" + new_paragraph
+                new_node = Node(document_state=new_document_state, parent=current_node, plan=new_paragraph)
+                current_node.children.append(new_node)
+                current_node = new_node # Move to the new node for simulation
+
+            # 3. SIMULATION: Get a quality score from the Critic for the new path
+            critic_prompt = CRITIC_PROMPT_TEMPLATE.format(goal=local_goal, document=current_node.document_state)
+            response = ollama.chat(model=MODEL, messages=[{'role': 'user', 'content': critic_prompt}])
+            try:
+                score = int(response['message']['content'].strip())
+            except ValueError:
+                score = 1 # Penalize if the critic doesn't return a number
+
+            # 4. BACKPROPAGATION: Update the stats all the way up the tree
+            temp_node = current_node
+            while temp_node is not None:
+                temp_node.visits += 1
+                temp_node.value += score
+                temp_node = temp_node.parent
+        
+        print("\n💡 Thinking complete.")
+        
+        # After thinking, choose the best path to actually take
+        if not root_node.children:
+            print("Agent has no further ideas. Stopping.")
+            break
+            
+        best_child = max(root_node.children, key=lambda n: n.visits) # The most explored path is the most robust
+        
+        print(f"✅ Agent commits to the next step:\n---")
+        print(best_child.plan_that_led_here)
+        print("---\n")
+        
+        # The chosen path becomes the new reality
+        root_node = best_child
+        root_node.parent = None # Detach from the old tree
+        
+        save_document_state(root_node.document_state, local_goal)
+        turn_number += 1
+        time.sleep(1)
+
+
+# --- Helper Functions (load, save, input_thread, main) ---
+# These functions remain largely the same, just ensure they are present.
 def load_document_on_startup(filename):
     """
     Tries to load the last saved state from the memory file.
@@ -106,96 +192,6 @@ def user_input_thread():
                 agent_state['goal'] = user_input.strip()
         except EOFError:
             time.sleep(0.5)
-
-def main_agent_loop():
-    """The main loop for our agent's thought process."""
-    local_goal = agent_state['goal']
-    iteration = 1
-    
-    print("--- 🚀 Initializing Agent ---")
-    loaded_goal, loaded_doc = load_document_on_startup(CURRENT_DOC_FILENAME)
-    
-    if loaded_goal == local_goal and loaded_doc is not None:
-        print("✅ Previous session for the same goal found. Loading state...")
-        working_document = loaded_doc
-        current_plan = "Review the loaded working document and determine the next logical step to continue the project."
-    else:
-        print("✨ Starting a new session.")
-        working_document = "The story is currently empty. The first step is to establish a basic outline."
-        current_plan = "Brainstorm core concepts for the story (robot's purpose, setting, emotional arc)."
-
-    critique = "No critique yet. This is the first step."
-
-    print(f"🎯 Main Goal: {local_goal}")
-    print("Agent is now running automatically. Type a new goal and press Enter to interrupt.")
-    print("Press Ctrl+C to stop the agent.\n")
-
-    while agent_state['running']:
-        try:
-            if local_goal != agent_state['goal']:
-                local_goal = agent_state['goal']
-                working_document = "The project is empty. The first step is to establish a basic outline."
-                current_plan = "Brainstorm core concepts for the new goal."
-                critique = "The goal has changed. Starting fresh."
-                iteration = 1
-                print(f"--- 🔄 Agent Resetting for New Goal ---")
-                print(f"🎯 Main Goal: {local_goal}\n")
-
-            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            is_execution_step = bool(re.search(r'\[EXECUTE\]', critique, re.IGNORECASE))
-            
-            print(f"--- Iteration {iteration} (Time: {timestamp}) ---")
-            
-            if is_execution_step:
-                print("⚡ Executor is EXECUTING the plan...")
-                task = f"Execute the approved plan: '{current_plan}'. Update the Working Document with the results. Your output should be ONLY the new, updated Working Document."
-            else:
-                print("💡 Executor is PLANNING the next step...")
-                task = "Based on the critique, formulate the *next single, simple step*. Your output must be ONLY the description of this new step."
-
-            executor_prompt = EXECUTOR_PROMPT_TEMPLATE.format(
-                timestamp=timestamp, goal=local_goal, document=working_document,
-                plan=current_plan, critique=critique, task=task
-            )
-
-            response = ollama.chat(
-                model=MODEL, messages=[{'role': 'user', 'content': executor_prompt}]
-            )
-            
-            if is_execution_step:
-                new_content = response['message']['content'].strip()
-                HEADER_TO_CLEAN = "**Working Document (Current Project State):**"
-                working_document = new_content.replace(HEADER_TO_CLEAN, "").strip()
-                print("✅ Document Updated. Now planning the next step.\n")
-                current_plan = "Review the updated document and determine the next logical step."
-            else:
-                current_plan = response['message']['content'].strip()
-                print(f"✅ Executor's New Plan: {current_plan}\n")
-
-            print("🤔 Critic is evaluating...")
-            critic_prompt = CRITIC_PROMPT_TEMPLATE.format(
-                timestamp=timestamp, goal=local_goal, document=working_document, plan=current_plan
-            )
-            
-            response = ollama.chat(
-                model=MODEL, messages=[{'role': 'user', 'content': critic_prompt}]
-            )
-            critique = response['message']['content'].strip()
-            print(f"🧐 Critic's Feedback: {critique}\n")
-
-            save_document_state(working_document, local_goal)
-            iteration += 1
-            time.sleep(5)
-
-        except NameError as e:
-            print(f"\n[!] A critical error occurred: {e}")
-            print("[!] This is likely a bug in the script. Please check variable scopes.")
-            agent_state['running'] = False
-            break
-        except Exception as e:
-            print(f"\nAn error occurred in the main loop: {e}")
-            agent_state['running'] = False
-            break
 
 def main():
     """Main entry point of the script."""
