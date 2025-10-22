@@ -3,13 +3,13 @@
 # scout/planner/executor/verifier for pipeline components, Agent class for goal management.
 
 import time  # Standard library for time-related functions, used for sleep in the main loop
-from AgentTree.agent.utils import config, state_manager  # Utilities for agent settings and state management
-from AgentTree.agent.engine.node import Node  # Node class for the tree structure in search algorithms
-# from AgentTree.agent.engine import mcts # We are temporarily replacing MCTS with the pipeline
-from AgentTree.agent.intelligence.core import Scout, Planner  # Intelligence components for scouting and planning
-from AgentTree.agent.pipeline.executor import Executor  # Executor class for generating and applying code changes
-from AgentTree.agent.pipeline.verifier import Verifier  # Verifier class for testing and validating code changes
-from AgentTree.agent import Agent  # Agent class for goal-setting and management
+from agent.utils import config, state_manager  # Utilities for agent settings and state management
+from agent.engine.node import Node  # Node class for the tree structure in search algorithms
+# from agent.engine import mcts # We are temporarily replacing MCTS with the pipeline
+from agent.intelligence.core import Scout, Planner  # Intelligence components for scouting and planning
+from agent.pipeline.executor import Executor  # Executor class for generating and applying code changes
+from agent.pipeline.verifier import Verifier  # Verifier class for testing and validating code changes
+from agent import Agent  # Agent class for goal-setting and management
 
 # Backward compatibility: keep run() function using direct state_manager calls
 def run():
@@ -17,7 +17,7 @@ def run():
     print("--- Initializing Agent ---")
 
     loaded_goal, current_code_state = state_manager.load_document_on_startup()
-    
+
     # Initialize our specialist agents
     scout = Scout()
     planner = Planner()

@@ -7,7 +7,7 @@
 # - agent.agent_class: Agent class for goal-setting and management with run loop.
 #
 
-from AgentTree.agent import Agent  # Import the Agent class for goal management and run loop
+from agent import Agent  # Import the Agent class for goal management and run loop
 
 if __name__ == "__main__":
     agent = Agent()

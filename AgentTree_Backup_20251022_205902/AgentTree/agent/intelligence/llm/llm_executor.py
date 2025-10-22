@@ -11,9 +11,10 @@ import subprocess  # System process execution for safe code running and testing
 import time  # Timing utilities for performance measurement and execution tracking
 import tempfile  # Temporary file creation for safe code execution in isolated environment
 import os  # File system operations for data persistence and temporary file management
+import json  # JSON handling for structured plan output
 from agent.utils import config  # Configuration module for model, prompt templates, and system settings
 
-def get_executor_response(goal, document, backpack=None):
+def get_executor_response(goal, document, backpack=None, plan=None):
     """Generates the next code improvement using the Executor prompt with self-improvement."""
     # Format backpack context
     backpack_context = ""
@@ -24,10 +25,15 @@ def get_executor_response(goal, document, backpack=None):
             backpack_context += f"Code:\n{item.get('full_code', '')}\n\n"
 
     # Get base prompt
-    prompt = config.EXECUTOR_PROMPT_TEMPLATE.format(goal=goal, document=document, backpack_context=backpack_context)
+    prompt = config.EXECUTOR_PROMPT_TEMPLATE.format(goal=goal, plan=plan, document=document, backpack_context=backpack_context)
+
+    # Add plan context if provided
+    if plan:
+        plan_json = json.dumps(plan, indent=2)
+        prompt += f"\n\n**Plan Context:**\n{plan_json}\n"
 
     # Add self-improvement context if we have historical data
-    from agent.intelligence.llm_tracker import get_best_prompt_variations  # Import here to avoid circular imports
+    from .tracker import get_best_prompt_variations  # Import here to avoid circular imports
     best_prompts = get_best_prompt_variations(limit=3)
     if best_prompts:
         improvement_context = "\n\n**Self-Improvement Insights:**\nBased on previous successful code generations:\n"

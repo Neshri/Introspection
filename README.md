@@ -2,14 +2,14 @@
 
 ## Project Description
 
-AgentTree is an autonomous AI agent that uses Monte Carlo Tree Search (MCTS) to generate and improve Python code. The system employs multiple AI personalities including Executor (code generation), Critic (quality evaluation), Evaluator (performance assessment), Tracker (learning and analytics), and Scout (exploration) - working together through the MCTS algorithm to explore and optimize programming solutions.
+AgentTree is an autonomous AI agent that uses Monte Carlo Tree Search (MCTS) or linear pipeline approaches to generate and improve Python code. The system employs multiple AI personalities including Executor (code generation), Critic (quality evaluation), Evaluator (performance assessment), Tracker (learning and analytics), Scout (exploration), and Planner (strategy formulation) - working together through algorithmic processes to explore and optimize programming solutions.
 
 The agent builds code iteratively by expanding a search tree where each node represents a code state. The MCTS algorithm balances exploration and exploitation to find the most promising code variations, guided by actual code execution results and the Critic's quality assessments. The system maintains persistent memory, allowing it to resume code generation across sessions, and includes self-improvement mechanisms that learn from successful prompt patterns.
 
 ## Features
 
 - **MCTS-Powered Code Generation**: Uses Monte Carlo Tree Search to explore and optimize code development
-- **Multi AI Personality System**: Executor generates new code, Critic evaluates functionality and correctness, Evaluator assesses performance, Tracker monitors learning, Scout explores new approaches
+- **Multi AI Personality System**: Executor generates new code, Critic evaluates functionality and correctness, Evaluator assesses performance, Tracker monitors learning, Scout explores new approaches, Planner creates strategic implementation plans
 - **Code Execution Testing**: Runs generated code safely to validate functionality
 - **Self-Improvement**: Learns from successful prompt patterns to improve future code generation
 - **Persistent Memory**: Saves and loads code progress between sessions
@@ -65,7 +65,7 @@ The agent will start with a default programming goal (Monte Carlo pi calculation
 
 ## Architecture Overview
 
-AgentTree follows a modular, tree-based architecture designed for autonomous code generation through Monte Carlo Tree Search (MCTS). The system is organized into a hierarchical structure where each component plays a specific role in the iterative code refinement process.
+AgentTree follows a modular architecture designed for autonomous code generation through Monte Carlo Tree Search (MCTS) or linear pipeline approaches. The system is organized into a hierarchical structure where each component plays a specific role in the iterative code refinement process.
 
 ### Core Architecture Components
 
@@ -85,6 +85,7 @@ The architecture consists of five main layers, each handling distinct responsibi
 - **LLM Evaluator** (`llm_evaluator.py`): Assesses performance metrics and optimization opportunities
 - **LLM Tracker** (`llm_tracker.py`): Monitors learning patterns and analytics
 - **Scout** (`scout.py`): Explores new code approaches and innovative solutions
+- **Planner** (`planner.py`): Creates structured implementation plans and strategies
 
 #### 4. **Utilities Layer** (`agent/utils/`)
 - **State Manager** (`state_manager.py`): Persistent memory management across sessions
@@ -138,6 +139,7 @@ critic_score = llm_critic.evaluate_quality(goal, generated_code)
 evaluator_score = llm_evaluator.assess_performance(generated_code)
 tracker_insights = llm_tracker.analyze_patterns()
 scout_exploration = scout.explore_alternatives(goal)
+plan = planner.create_plan(goal, backpack_context)
 ```
 
 #### Safe Execution Pattern

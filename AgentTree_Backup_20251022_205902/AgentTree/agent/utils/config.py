@@ -8,8 +8,8 @@ MODEL = 'gemma3:4b-it-qat'
 INITIAL_GOAL = "Improve the self-improvement system by adding logging for when a prompt fails."
 MCTS_ITERATIONS_PER_STEP = 10
 
-CURRENT_DOC_FILENAME = "agent_goal.txt"
-
+CURRENT_DOC_FILENAME = "agent_memory_current.txt"
+PREVIOUS_DOC_FILENAME = "agent_memory_previous.txt"
 
 # Self-improvement tracking
 PROMPT_PERFORMANCE_LOG = "prompt_performance.json"

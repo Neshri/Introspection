@@ -14,9 +14,9 @@
 #
 
 import math  # Standard library for mathematical operations, used in UCB1 formula
-from AgentTree.agent.engine.node import Node  # Node class for tree data structure in MCTS
-from AgentTree.agent.intelligence.llm import get_executor_response, execute_code, evaluate_code_quality, get_critic_score, track_prompt_performance  # Intelligence functions
-from AgentTree.agent.utils import config  # Configuration settings for MCTS parameters and goals
+from agent.engine.node import Node  # Node class for tree data structure in MCTS
+from agent.intelligence.llm import get_executor_response, execute_code, evaluate_code_quality, get_critic_score, track_prompt_performance  # Intelligence functions
+from agent.utils import config  # Configuration settings for MCTS parameters and goals
 
 def run_mcts_cycle(root_node):
     """Performs one full "thinking" cycle and returns the best next node."""
