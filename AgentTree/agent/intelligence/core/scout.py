@@ -4,8 +4,8 @@ import json  # JSON handling for data serialization
 import re  # Regular expressions for extracting JSON from markdown blocks
 import logging  # Logging for debugging and progress tracking
 import ollama  # LLM interface for semantic analysis of code relevance
-from ..llm_service import chat_llm  # Standardized LLM service
-from ...utils import config  # Configuration settings for model selection and parameters
+from agent.intelligence.llm import chat_llm  # Standardized LLM service
+from agent import config  # Configuration settings for model selection and parameters
 
 class Scout:
     def scout_project(self, main_goal: str) -> list[dict]:

@@ -11,7 +11,7 @@ import os  # File system operations for checking file existence and managing fil
 import shutil  # File operations for renaming and backing up state files
 import re  # Regular expressions for extracting goal and document content from saved files
 import datetime  # Date and time utilities for timestamping saved state files
-from . import config  # Configuration module for memory file paths and settings
+from agent import config  # Configuration module for memory file paths and settings
 from typing import Optional, Tuple  # Type hints for function signatures
 
 def load_goal() -> Optional[str]:

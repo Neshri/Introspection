@@ -1,10 +1,10 @@
 # AgentTree/agent/pipeline/runner.py
 # PipelineRunner class encapsulates the scout→planner→executor→verifier→commit logic.
 
-from ..shared.core import Scout, Planner  # Intelligence components for scouting and planning
+from agent.intelligence.core import Scout, Planner  # Intelligence components for scouting and planning
 from .executor import Executor  # Executor class for generating and applying code changes
 from .verifier import Verifier  # Verifier class for testing and validating code changes
-from ..utils import state_manager  # Utility for saving document state
+from agent.utils import state_manager  # Utility for saving document state
 
 
 class PipelineRunner:

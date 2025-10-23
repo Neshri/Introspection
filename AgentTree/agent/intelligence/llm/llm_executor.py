@@ -12,9 +12,9 @@ import time  # Timing utilities for performance measurement and execution tracki
 import tempfile  # Temporary file creation for safe code execution in isolated environment
 import os  # File system operations for data persistence and temporary file management
 import json  # JSON handling for structured plan output
-from ..utils import format_backpack_context  # Shared utility functions
-from ..llm_service import chat_llm  # Standardized LLM service
-from ...utils import config  # Configuration module for model, prompt templates, and system settings
+from agent import format_backpack_context  # Shared utility functions
+from .llm_service import chat_llm  # Standardized LLM service
+from agent import config  # Configuration module for model, prompt templates, and system settings
 
 def get_executor_response(goal, document, backpack=None, plan=None):
     """Generates the next code improvement using the Executor prompt with self-improvement."""

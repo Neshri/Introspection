@@ -1,7 +1,7 @@
 # executor.py (Pipeline Component)
 # This module defines the Executor class responsible for executing plans and generating code changes.
 
-from agent.intelligence import get_executor_response  # Function to generate executor responses using LLM
+from agent.intelligence.llm import get_executor_response  # Function to generate executor responses using LLM
 
 class Executor:
     """

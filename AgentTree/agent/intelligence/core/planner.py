@@ -1,7 +1,7 @@
 import json  # JSON handling for structured plan output
 import ollama  # LLM interface for generating plans based on goals and context
-from ..llm_service import chat_llm  # Standardized LLM service
-from ...utils import config  # Configuration settings for model selection and prompt templates
+from agent.intelligence.llm import chat_llm  # Standardized LLM service
+from agent import config  # Configuration settings for model selection and prompt templates
 
 
 class Planner:

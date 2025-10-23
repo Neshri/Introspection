@@ -40,6 +40,26 @@ def is_import_or_comment(line):
     return stripped.startswith('#') or stripped.startswith('import ') or stripped.startswith('from ')
 
 
+def is_boilerplate(line):
+    """Check if a line is boilerplate code that should be exempted from duplication checks."""
+    stripped = line.strip()
+    # Single-line common language constructs
+    if stripped in ['try:', 'except:', 'else:', 'finally:', 'continue', 'break', 'pass', 'return', 'raise']:
+        return True
+    # Exception handling with 'as' clause
+    if stripped.startswith('except ') and ' as ' in stripped and stripped.endswith(':'):
+        return True
+    # Standard docstring patterns
+    if stripped == '"""':
+        return True
+    if 'Args:' in stripped or 'Returns:' in stripped or 'Raises:' in stripped:
+        return True
+    # Single bracket/brace/parenthesis
+    if stripped in ['{', '}', '(', ')', '[', ']']:
+        return True
+    return False
+
+
 def count_code_lines(lines):
     """Count lines of code, excluding comments and empty lines."""
     count = 0

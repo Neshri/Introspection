@@ -4,7 +4,7 @@
 #
 
 import ollama
-from agent.utils import config
+from agent import config  # Configuration module for model, prompt templates, and system settings
 
 
 def chat_llm(prompt, model=None):

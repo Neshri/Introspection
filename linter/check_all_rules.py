@@ -7,6 +7,7 @@ Runs all validation checks with a single command.
 import sys  # system-specific parameters and functions
 
 from .rules import (  # all rule checking functions
+    check_architectural_recovery,  # checks for architectural recovery (Rule 0B)
     check_import_comments,  # checks for explanatory comments on imports
     check_imports_compliance,  # validates import compliance with rules
     check_duplication,  # detects code duplication
@@ -14,6 +15,7 @@ from .rules import (  # all rule checking functions
     analyze_lines_count,  # analyzes line counts in files
     check_shared_module_placement,  # checks placement of shared modules
     analyze_directory_structure,  # analyzes directory structure cohesion
+    check_final_compliance,  # performs final compliance check
 )
 
 
@@ -22,6 +24,21 @@ def main():
     print("Running all rule checks...\n")
 
     violations_found = False
+
+    # Check architectural recovery (Rule 0B) - must be done first
+    print("0. Checking architectural recovery (Rule 0B)...")
+    violations = check_architectural_recovery()
+    if violations:
+        violations_found = True
+        print("Architectural recovery violations found:")
+        for file, imp, reason in violations:
+            print(f"File: {file}")
+            print(f"Import: {imp}")
+            print(f"Reason: {reason}")
+            print()
+    else:
+        print("No architectural recovery violations found.")
+    print()
 
     # Check import comments
     print("1. Checking import comments...")
@@ -117,6 +134,20 @@ def main():
         print("All directories are within cohesion limits.")
 
     print("\nAll checks completed.")
+
+    # Final Compliance Check - verify changed files
+    print("\n8. Performing Final Compliance Check on all files...")
+    final_violations = check_final_compliance()
+    if final_violations:
+        violations_found = True
+        print("Final compliance violations found:")
+        for file, imp, reason in final_violations:
+            print(f"File: {file}")
+            print(f"Import: {imp}")
+            print(f"Reason: {reason}")
+            print()
+    else:
+        print("All files pass final compliance check.")
 
     # Exit with code based on violations
     sys.exit(1 if violations_found else 0)

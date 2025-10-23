@@ -6,8 +6,9 @@
 import re
 import time
 from typing import Optional
-from .utils import config, state_manager  # Utilities for agent settings and state management
-from .shared.core import Scout, Planner  # Intelligence components for scouting and planning
+from agent import config  # Configuration settings
+from .utils import state_manager  # State management utilities
+from .intelligence.core import Scout, Planner  # Intelligence components for scouting and planning
 from .pipeline.executor import Executor  # Executor class for generating and applying code changes
 from .pipeline.verifier import Verifier  # Verifier class for testing and validating code changes
 

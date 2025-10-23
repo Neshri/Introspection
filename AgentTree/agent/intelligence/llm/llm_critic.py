@@ -7,9 +7,9 @@
 #
 
 import ollama  # Main LLM interface library for model interactions and API calls
-from ..utils import format_backpack_context  # Shared utility functions
-from ..llm_service import chat_llm  # Standardized LLM service
-from ...utils import config  # Configuration module for model, prompt templates, and system settings
+from agent import format_backpack_context  # Shared utility functions
+from .llm_service import chat_llm  # Standardized LLM service
+from agent import config  # Configuration module for model, prompt templates, and system settings
 
 def get_critic_score(main_goal, document, backpack=None):
     """Evaluates the code so far using the Critic prompt."""

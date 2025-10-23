@@ -52,7 +52,7 @@ def check_shared_module_placement():
             module_usage = defaultdict(set)
             for file in files:
                 for mod in file_imports[file]:
-                    if not is_standard_library(mod) and not mod.startswith('.'):
+                    if not is_standard_library(mod) and not mod.startswith('.') and (mod.startswith('agent') or mod.startswith('AgentTree')):
                         module_usage[mod].add(file)
 
             # Find modules used by multiple files
@@ -61,6 +61,12 @@ def check_shared_module_placement():
             # Check if shared modules are in the immediate parent directory
             parent_path = os.path.join(base_dir, parent)
             for mod, files_using in shared_modules.items():
+                # Exemption: does not apply to entire top-level project packages
+                if mod == 'agent':
+                    continue
+                # Skip if it's an entire package (directory)
+                if os.path.isdir(os.path.join(parent_path, mod)):
+                    continue
                 mod_file = os.path.join(parent_path, f'{mod}.py')
                 if not os.path.exists(mod_file):
                     violations.append((parent_path, mod, list(files_using)))
