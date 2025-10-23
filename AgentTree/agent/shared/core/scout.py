@@ -4,19 +4,20 @@ import json  # JSON handling for data serialization
 import re  # Regular expressions for extracting JSON from markdown blocks
 import logging  # Logging for debugging and progress tracking
 import ollama  # LLM interface for semantic analysis of code relevance
-from AgentTree.agent.utils import config  # Configuration settings for model selection and parameters
+from ..llm_service import chat_llm  # Standardized LLM service
+from ...utils import config  # Configuration settings for model selection and parameters
 
 class Scout:
-    def scout_project(self, goal: str) -> list[dict]:
-        # Handle case where goal is None to prevent AttributeError
-        if goal is None:
-            logging.warning("Goal is None, defaulting to empty string")
-            goal = ""
+    def scout_project(self, main_goal: str) -> list[dict]:
+        # Handle case where main_goal is None to prevent AttributeError
+        if main_goal is None:
+            logging.warning("main_goal is None, defaulting to empty string")
+            main_goal = ""
 
-        logging.info(f"Starting scout for goal: {goal}")
+        logging.info(f"Starting scout for goal: {main_goal}")
 
         # Extract keywords from goal using improved method
-        keywords = self._extract_keywords_from_goal(goal)
+        keywords = self._extract_keywords_from_goal(main_goal)
         logging.info(f"Extracted keywords: {keywords}")
 
         # Traverse ./AgentTree/ for .py files
@@ -55,7 +56,7 @@ class Scout:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     code = f.read()
 
-                response_json = get_scout_response(goal, file_path, code)
+                response_json = get_scout_response(main_goal, file_path, code)
                 if response_json.get('relevant', False):
                     results.append({
                         "file_path": file_path,
@@ -115,14 +116,11 @@ class Scout:
         return keywords
         
 
-def get_scout_response(goal, file_path, file_content):
+def get_scout_response(main_goal, file_path, file_content):
     """Generates a JSON response from the Scout prompt for analyzing code relevance."""
     try:
-        prompt = config.SCOUT_PROMPT_TEMPLATE.format(goal=goal, file_path=file_path, file_content=file_content)
-        response = ollama.chat(model=config.MODEL, messages=[{'role': 'user', 'content': prompt}])
-
-        # Parse the JSON response from the LLM
-        content = response['message']['content'].strip()
+        prompt = config.SCOUT_PROMPT_TEMPLATE.format(goal=main_goal, file_path=file_path, file_content=file_content)
+        content = chat_llm(prompt)
         logging.debug(f"LLM response for {file_path}: {content[:200]}...")
 
         # Try direct JSON parsing first

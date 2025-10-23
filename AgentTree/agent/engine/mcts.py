@@ -14,11 +14,12 @@
 #
 
 import math  # Standard library for mathematical operations, used in UCB1 formula
-from AgentTree.agent.engine.node import Node  # Node class for tree data structure in MCTS
-from AgentTree.agent.intelligence.llm import get_executor_response, execute_code, evaluate_code_quality, get_critic_score, track_prompt_performance  # Intelligence functions
-from AgentTree.agent.utils import config  # Configuration settings for MCTS parameters and goals
+from .node import Node  # Node class for tree data structure in MCTS
+from ..shared.llm import get_executor_response, execute_code, evaluate_code_quality, get_critic_score, track_prompt_performance  # Intelligence functions
+from ..shared.utils import format_backpack_context  # Shared utility functions
+from ..utils import config  # Configuration settings for MCTS parameters and goals
 
-def run_mcts_cycle(root_node):
+def run_mcts_cycle(root_node, main_goal):
     """Performs one full "thinking" cycle and returns the best next node."""
     for i in range(config.MCTS_ITERATIONS_PER_STEP):
         current_node = root_node
@@ -31,10 +32,10 @@ def run_mcts_cycle(root_node):
 
         # 2. EXPANSION: If we've reached a leaf, create one new child node
         if current_node.visits > 0 or current_node == root_node:
-            expand_node(current_node)
+            expand_node(current_node, main_goal)
 
         # 3. SIMULATION: Get a quality score from the Critic for the new path
-        score = simulate_node(current_node)
+        score = simulate_node(current_node, main_goal)
 
         # 4. BACKPROPAGATION: Update the stats all the way up the tree
         backpropagate(current_node, score)
@@ -46,10 +47,9 @@ def run_mcts_cycle(root_node):
     best_child = max(root_node.children, key=lambda n: n.visits)
     return best_child
 
-def expand_node(node):
+def expand_node(node, main_goal):
     """Creates one new child node for expansion."""
-    goal = config.INITIAL_GOAL
-    response = get_executor_response(goal, node.document_state, node.backpack)
+    response = get_executor_response(main_goal, node.document_state, node.backpack)
     new_code = response.strip()
 
     # Extract code from markdown if present (LLM might wrap in ```python blocks)
@@ -63,9 +63,8 @@ def expand_node(node):
     new_node = Node(document_state=new_code, parent=node, plan=new_code, backpack=node.backpack)
     node.children.append(new_node)
 
-def simulate_node(node):
+def simulate_node(node, main_goal):
     """Gets a quality score for the node by executing and evaluating the code."""
-    goal = config.INITIAL_GOAL
 
     # First execute the code to get actual runtime results
     execution_result = execute_code(node.document_state)
@@ -74,23 +73,18 @@ def simulate_node(node):
     node.execution_result = execution_result
 
     # Calculate score using the general evaluation framework
-    base_score = evaluate_code_quality(node.document_state, execution_result, goal)
+    base_score = evaluate_code_quality(node.document_state, execution_result, main_goal)
 
     # Get LLM critic score as well and combine for robustness
-    llm_score = get_critic_score(goal, node.document_state, node.backpack)
+    llm_score = get_critic_score(main_goal, node.document_state, node.backpack)
     combined_score = min(10, max(1, (base_score + llm_score) // 2))
 
     # Track this prompt/code combination for self-improvement
     # Extract the prompt that was used to generate this code
-    backpack_context = ""
-    if node.backpack:
-        for i, item in enumerate(node.backpack):
-            backpack_context += f"**File {i+1}: {item.get('file_path', 'Unknown')}**\n"
-            backpack_context += f"Justification: {item.get('justification', 'N/A')}\n"
-            backpack_context += f"Code:\n{item.get('full_code', '')}\n\n"
+    backpack_context = format_backpack_context(node.backpack)
 
-    prompt_used = config.EXECUTOR_PROMPT_TEMPLATE.format(goal=goal, document=node.parent.document_state if node.parent else node.document_state, backpack_context=backpack_context)
-    track_prompt_performance(prompt_used, combined_score, goal, execution_result)
+    prompt_used = config.EXECUTOR_PROMPT_TEMPLATE.format(goal=main_goal, document=node.parent.document_state if node.parent else node.document_state, backpack_context=backpack_context)
+    track_prompt_performance(prompt_used, combined_score, main_goal, execution_result)
 
     return combined_score
 

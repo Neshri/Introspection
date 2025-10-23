@@ -1,4 +1,4 @@
-from .agent_class import Agent
-from .agent import run, run_with_agent
+from .agent_class import Agent  # Agent class for goal management and execution
+from .agent import run  # Backward compatibility run function
 
-__all__ = ["Agent", "run", "run_with_agent"]
+__all__ = ["Agent", "run"]

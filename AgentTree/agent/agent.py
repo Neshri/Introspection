@@ -3,13 +3,13 @@
 # scout/planner/executor/verifier for pipeline components, Agent class for goal management.
 
 import time  # Standard library for time-related functions, used for sleep in the main loop
-from AgentTree.agent.utils import config, state_manager  # Utilities for agent settings and state management
-from AgentTree.agent.engine.node import Node  # Node class for the tree structure in search algorithms
-# from AgentTree.agent.engine import mcts # We are temporarily replacing MCTS with the pipeline
-from AgentTree.agent.intelligence.core import Scout, Planner  # Intelligence components for scouting and planning
-from AgentTree.agent.pipeline.executor import Executor  # Executor class for generating and applying code changes
-from AgentTree.agent.pipeline.verifier import Verifier  # Verifier class for testing and validating code changes
-from AgentTree.agent import Agent  # Agent class for goal-setting and management
+from .utils import config, state_manager  # Utilities for agent settings and state management
+from .engine.node import Node  # Node class for the tree structure in search algorithms
+# from .engine import mcts # We are temporarily replacing MCTS with the pipeline
+from .shared.core import Scout, Planner  # Intelligence components for scouting and planning
+from .pipeline.executor import Executor  # Executor class for generating and applying code changes
+from .pipeline.verifier import Verifier  # Verifier class for testing and validating code changes
+from . import Agent  # Agent class for goal-setting and management
 
 # Backward compatibility: keep run() function using direct state_manager calls
 def run():
@@ -48,7 +48,7 @@ def run():
 
             # 4. VERIFIER PHASE: Check the work
             print("Verifier is testing the new code...")
-            verification_result = verifier.verify_change(proposed_code_change)
+            verification_result = verifier.verify_change(loaded_goal, proposed_code_change)
             print(f"Verifier returned result: Success={verification_result['success']}")
 
             # 5. COMMIT PHASE: Decide whether to accept the change
@@ -68,76 +68,3 @@ def run():
     finally:
         print("--- Agent shutdown complete. ---")
 
-
-# New Agent class-based approach for goal management
-def run_with_agent():
-    """Alternative run function using the new Agent class for goal management."""
-    print("--- Initializing Agent with Goal Management ---")
-
-    agent = Agent()
-    current_goal = agent.get_goal()
-
-    # Use goal from agent, fallback to config if None
-    if current_goal is None:
-        current_goal = config.INITIAL_GOAL
-        agent.set_goal(current_goal)
-
-    loaded_goal, current_code_state = state_manager.load_document_on_startup()
-
-    # Use agent's goal if document state goal is None
-    if loaded_goal is None:
-        loaded_goal = current_goal
-
-    # Initialize our specialist agents
-    scout = Scout()
-    planner = Planner()
-    executor = Executor(loaded_goal, current_code_state)
-    verifier = Verifier()
-
-    # Agent class integration for the new run_with_agent function
-    turn_number = 1
-    try:
-        while True:
-            print(f"\n--- Turn {turn_number} ---")
-
-            # This is the new, linear pipeline. It replaces the single MCTS call.
-
-            # 1. SCOUT PHASE: Gather context
-            print("Scout is analyzing the project...")
-            backpack = scout.scout_project(current_goal)
-            print(f"Scout returned a backpack with {len(backpack)} relevant files.")
-
-            # 2. PLANNER PHASE: Create a strategy
-            print("Planner is creating a plan...")
-            plan = planner.create_plan(current_goal, backpack)
-            print(f"Planner created the following plan:\n{plan}")
-
-            # 3. EXECUTOR PHASE: Write the new code
-            print("Executor is generating the code change...")
-            proposed_code_change = executor.execute_plan(plan, backpack)
-            # For simplicity, let's assume it only modifies one file for now
-
-            # 4. VERIFIER PHASE: Check the work
-            print("Verifier is testing the new code...")
-            verification_result = verifier.verify_change(proposed_code_change)
-            print(f"Verifier returned result: Success={verification_result['success']}")
-
-            # 5. COMMIT PHASE: Decide whether to accept the change
-            if verification_result['success']:
-                print("Change VERIFIED. Committing to memory.")
-                current_code_state = proposed_code_change # Update the state
-                state_manager.save_document_state(current_code_state, current_goal)
-                # Update agent's goal if needed
-                if agent.get_goal() != current_goal:
-                    agent.set_goal(current_goal)
-            else:
-                print("Change FAILED verification. Discarding change and trying again next turn.")
-                # In the future, this failure reason would be fed back into the next loop
-
-            turn_number += 1
-            time.sleep(1)
-
-    except KeyboardInterrupt:
-        print("\n--- User interrupted. Shutting down agent. ---")
-    finally:
-        print("--- Agent shutdown complete. ---")

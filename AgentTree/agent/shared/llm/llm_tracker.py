@@ -8,7 +8,7 @@
 
 import os  # File system operations for data persistence and temporary file management
 import json  # JSON handling for prompt performance tracking and data serialization
-from AgentTree.agent.utils import config  # Configuration module for model, prompt templates, and system settings
+from ...utils import config  # Configuration module for model, prompt templates, and system settings
 
 def track_prompt_performance(prompt_variation, score, goal, execution_result):
     """

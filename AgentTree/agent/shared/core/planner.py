@@ -1,6 +1,7 @@
 import json  # JSON handling for structured plan output
 import ollama  # LLM interface for generating plans based on goals and context
-from AgentTree.agent.utils import config  # Configuration settings for model selection and prompt templates
+from ..llm_service import chat_llm  # Standardized LLM service
+from ...utils import config  # Configuration settings for model selection and prompt templates
 
 
 class Planner:
@@ -10,12 +11,12 @@ class Planner:
     that guide the Executor in implementing code changes.
     """
 
-    def create_plan(self, goal: str, backpack: list[dict]) -> str:
+    def create_plan(self, main_goal: str, backpack: list[dict]) -> str:
         """
         Generates a structured plan for achieving the given programming goal using relevant project context.
 
         Args:
-            goal (str): The programming goal to achieve
+            main_goal (str): The programming goal to achieve
             backpack (list[dict]): List of relevant files with their content and justification
 
         Returns:
@@ -33,15 +34,12 @@ class Planner:
 
         # Create the prompt using the template
         prompt = config.PLANNER_PROMPT_TEMPLATE.format(
-            goal=goal,
+            goal=main_goal,
             backpack_context=backpack_context
         )
 
         # Call the LLM to generate the plan
-        response = ollama.chat(model=config.MODEL, messages=[{'role': 'user', 'content': prompt}])
-
-        # Extract and return the plan
-        plan = response['message']['content'].strip()
+        plan = chat_llm(prompt)
 
         # Validate that the plan is valid JSON
         try:
@@ -49,7 +47,7 @@ class Planner:
         except json.JSONDecodeError:
             # If JSON parsing fails, wrap in a basic structure
             plan = json.dumps({
-                "goal": goal,
+                "goal": main_goal,
                 "steps": [plan],
                 "estimated_complexity": "medium",
                 "risk_assessment": "Unable to parse structured plan from LLM response"

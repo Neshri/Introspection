@@ -1,5 +1,5 @@
-from .core import Planner, Scout
-from .llm import get_critic_score, evaluate_code_quality, get_executor_response, execute_code, track_prompt_performance, get_best_prompt_variations
+from ..shared.core import Planner, Scout  # Intelligence components for planning and scouting
+from ..shared.llm import get_critic_score, evaluate_code_quality, get_executor_response, execute_code, track_prompt_performance, get_best_prompt_variations  # LLM utility functions for intelligence operations
 
 __all__ = [
     "Planner",

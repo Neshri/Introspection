@@ -12,12 +12,13 @@ class Verifier:
     and optionally running available tests using pytest.
     """
 
-    def verify_change(self, proposed_code_change) -> dict:
+    def verify_change(self, main_goal, proposed_code_change) -> dict:
         """
         Verifies a proposed code change by checking for Python syntax errors
         and running tests if available.
 
         Args:
+            main_goal: The main goal for the agent
             proposed_code_change: Either a dict with 'new_content' or a string of code content
 
         Returns:

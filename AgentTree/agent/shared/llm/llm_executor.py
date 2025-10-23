@@ -12,17 +12,14 @@ import time  # Timing utilities for performance measurement and execution tracki
 import tempfile  # Temporary file creation for safe code execution in isolated environment
 import os  # File system operations for data persistence and temporary file management
 import json  # JSON handling for structured plan output
-from AgentTree.agent.utils import config  # Configuration module for model, prompt templates, and system settings
+from ..utils import format_backpack_context  # Shared utility functions
+from ..llm_service import chat_llm  # Standardized LLM service
+from ...utils import config  # Configuration module for model, prompt templates, and system settings
 
 def get_executor_response(goal, document, backpack=None, plan=None):
     """Generates the next code improvement using the Executor prompt with self-improvement."""
     # Format backpack context
-    backpack_context = ""
-    if backpack:
-        for i, item in enumerate(backpack):
-            backpack_context += f"**File {i+1}: {item.get('file_path', 'Unknown')}**\n"
-            backpack_context += f"Justification: {item.get('justification', 'N/A')}\n"
-            backpack_context += f"Code:\n{item.get('full_code', '')}\n\n"
+    backpack_context = format_backpack_context(backpack)
 
     # Get base prompt
     prompt = config.EXECUTOR_PROMPT_TEMPLATE.format(goal=goal, plan=plan, document=document, backpack_context=backpack_context)
@@ -44,8 +41,7 @@ def get_executor_response(goal, document, backpack=None, plan=None):
         improvement_context += "\nUse these insights to generate better code variations."
         prompt += improvement_context
 
-    response = ollama.chat(model=config.MODEL, messages=[{'role': 'user', 'content': prompt}])
-    return response['message']['content'].strip()
+    return chat_llm(prompt)
 
 def execute_code(code):
     """
