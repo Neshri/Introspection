@@ -1,8 +1,8 @@
-# AgentTree
+# AgentGraph
 
 ## Project Description
 
-AgentTree is an autonomous AI agent system that implements an iterative pipeline approach to generate and improve Python code. The system leverages multiple specialized intelligence services working together through coordinated algorithmic processes to transform natural language goals into executable, high-quality code solutions.
+AgentGraph is an autonomous AI agent system that implements an iterative pipeline approach to generate and improve Python code. The system leverages multiple specialized intelligence services working together through coordinated algorithmic processes to transform natural language goals into executable, high-quality code solutions.
 
 The agent operates through a structured pipeline that integrates exploration, planning, code generation, execution, and evaluation phases. Each iteration refines the codebase through safe execution testing and multi-dimensional quality assessment. The system maintains persistent state across sessions and incorporates learning mechanisms to improve performance based on successful patterns.
 
@@ -58,7 +58,7 @@ The agent operates through a structured pipeline that integrates exploration, pl
 
 ## Usage
 
-Run the AgentTree system using the command-line interface:
+Run the AgentGraph system using the command-line interface:
 
 ```bash
 python -m agent_tree.agent_tree_main --goal "Your programming goal here"
@@ -97,7 +97,7 @@ python -m linter.linter_main agent_tree/agent_tree_main.py
 
 ## Architecture Overview
 
-AgentTree follows a shallow, AI-friendly architecture designed for autonomous code generation. The system adheres to strict architectural rules that enforce modularity, clarity, and maintainability. All modules reside either in the root directory or direct subdirectories, with no nested subdirectories allowed.
+AgentGraph follows a shallow, AI-friendly architecture designed for autonomous code generation. The system adheres to strict architectural rules that enforce modularity, clarity, and maintainability. All modules reside either in the root directory or direct subdirectories, with no nested subdirectories allowed.
 
 ### Core Architecture Principles
 
@@ -156,7 +156,7 @@ Automated code quality and architectural compliance checker:
 
 ### Data Flow Architecture
 
-The AgentTree system follows a pipeline-based data flow with integrated intelligence services:
+The AgentGraph system follows a pipeline-based data flow with integrated intelligence services:
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
