@@ -35,7 +35,7 @@ class Scout:
         start_module = 'agent_graph_main'
         start_path = os.path.join(self.working_dir, 'agent_graph_main.py')
         if start_module not in all_modules:
-            logging.error("Root module agent_tree_main.py not found")
+            logging.error("Root module agent_graph_main.py not found")
             return []
 
         queue = [(start_module, "entry point", start_path)]  # (module_name, reason, path)
@@ -75,6 +75,7 @@ class Scout:
 
             # Extract imported modules and add to queue
             next_modules = self._extract_imported_modules(code, current_path, all_modules)
+            print(f"DEBUG: Extracted imports from {current_module}: {next_modules}")
             for mod_name, import_reason in next_modules:
                 if mod_name not in visited and mod_name in all_modules:
                     print(f"DEBUG: Enqueuing next module '{mod_name}' (imported by {current_module})")
@@ -97,9 +98,9 @@ class Scout:
                 if isinstance(node, ast.ImportFrom):
                     if node.module:
                         level = node.level if hasattr(node, 'level') and node.level else 0
-                        mod_name = node.module.split('.')[0]
+                        mod_name = node.module
                         if level == 0:
-                            possible = [mod_name]
+                            possible = [mod_name, mod_name.split('.')[-1]]
                         elif level == 1:
                             possible = ['.'.join(current_package_parts + [mod_name]), mod_name]
                         elif level == 2:
