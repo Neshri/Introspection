@@ -7,7 +7,7 @@
 #
 
 import ollama  # LLM interface for code criticism
-from .backpack_formatter import format_backpack_context  # Formats context for backpack items
+from .agent_backpack_formatter import format_backpack_context  # Formats context for backpack items
 from .intelligence_llm_service import chat_llm  # Standardized LLM chat service
 from .agent_config import config  # Configuration for model and prompt templates
 

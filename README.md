@@ -139,7 +139,7 @@ The main autonomous agent system with the following key components:
 - **Utilities**:
   - `utils_collect_modules.py`: Module discovery and analysis
   - `utils_state_persistence.py`: Session state saving and loading
-  - `backpack_formatter.py`: Context formatting for LLM interactions
+  - `agent_backpack_formatter.py`: Context formatting for LLM interactions
 
 #### **Linter Module** (`linter/`)
 Automated code quality and architectural compliance checker:

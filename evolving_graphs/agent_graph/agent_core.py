@@ -118,7 +118,7 @@ class Agent:
 
         # Initialize the pipeline runner
         from .pipeline_pipeline_runner import PipelineRunner  # To manage the execution pipeline with goal tracking
-        pipeline_runner = PipelineRunner(self.main_goal, current_code_state)
+        pipeline_runner = PipelineRunner(self.main_goal, current_code_state, root_dir=".")
 
         # Agent class integration for the new run_with_agent function
         turn_number = 1

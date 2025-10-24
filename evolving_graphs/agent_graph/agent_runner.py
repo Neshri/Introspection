@@ -3,21 +3,22 @@
 # scout/planner/executor/verifier for pipeline components, Agent class for goal management.
 
 import time  # Standard library for time-related functions, used for sleep in the main loop
-from agent import config  # Configuration settings
-from .utils import state_manager  # State management utilities
-from .engine.node import Node  # Node class for the tree structure in search algorithms
+from .agent_config import config  # Configuration settings
+from .utils_state_persistence import save_document_state, load_document_on_startup  # State management utilities
+from .engine_search_node import Node  # Node class for the tree structure in search algorithms
 # from .engine import mcts # We are temporarily replacing MCTS with the pipeline
-from .intelligence import Scout, Planner  # Intelligence components for scouting and planning
-from .pipeline.executor import Executor  # Executor class for generating and applying code changes
-from .pipeline.verifier import Verifier  # Verifier class for testing and validating code changes
-from .agent_class import Agent  # Agent class for goal-setting and management
+from .intelligence_project_scout import Scout  # Intelligence components for scouting and planning
+from .intelligence_plan_generator import Planner  # Intelligence components for scouting and planning
+from .pipeline_pipeline_executor import Executor  # Executor class for generating and applying code changes
+from .pipeline_code_verifier import Verifier  # Verifier class for testing and validating code changes
+from .agent_core import Agent  # Agent class for goal-setting and management
 
 # Backward compatibility: keep run() function using direct state_manager calls
 def run():
     """The main, continuous loop that drives the agent's behavior."""
     print("--- Initializing Agent ---")
 
-    loaded_goal, current_code_state = state_manager.load_document_on_startup()
+    loaded_goal, current_code_state = load_document_on_startup()
     
     # Initialize our specialist agents
     scout = Scout()
@@ -56,7 +57,7 @@ def run():
             if verification_result['success']:
                 print("Change VERIFIED. Committing to memory.")
                 current_code_state = proposed_code_change # Update the state
-                state_manager.save_document_state(current_code_state, loaded_goal)
+                save_document_state(current_code_state, loaded_goal)
             else:
                 print("Change FAILED verification. Discarding change and trying again next turn.")
                 # In the future, this failure reason would be fed back into the next loop

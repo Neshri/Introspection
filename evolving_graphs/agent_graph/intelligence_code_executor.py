@@ -12,11 +12,11 @@ import time  # Performance timing for execution
 import tempfile  # Temporary file creation for safe execution
 import os  # File system operations for temp files
 import json  # JSON handling for plan data
-from .backpack_formatter import format_backpack_context  # Context formatting utility
+from .agent_backpack_formatter import format_backpack_context  # Context formatting utility
 from .intelligence_llm_service import chat_llm  # Standardized LLM service
 from .agent_config import config  # Configuration for prompts and settings
 
-def get_executor_response(goal, document, backpack=None, plan=None):
+def get_executor_response(goal, document, backpack=None, plan=None, working_dir=None):
     """Generates the next code improvement using the Executor prompt with self-improvement."""
     # Format backpack context
     backpack_context = format_backpack_context(backpack)
@@ -28,6 +28,10 @@ def get_executor_response(goal, document, backpack=None, plan=None):
     if plan:
         plan_json = json.dumps(plan, indent=2)
         prompt += f"\n\n**Plan Context:**\n{plan_json}\n"
+
+    # Add working directory context if provided
+    if working_dir:
+        prompt += f"\n\n**Working Directory:**\nAll code changes should be generated relative to the working directory: {working_dir}\nIf writing files, ensure they target this candidate directory for consistency.\n"
 
     # Add self-improvement context if we have historical data
     from .intelligence_prompt_tracker import get_best_prompt_variations  # Dynamic import to avoid circular dependency

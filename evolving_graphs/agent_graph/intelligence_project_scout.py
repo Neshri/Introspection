@@ -9,6 +9,13 @@ from .agent_config import config  # Configuration settings for model selection a
 from .utils_collect_modules import collect_modules  # To collect all Python modules in the project directory
 
 class Scout:
+    def __init__(self):
+        self.working_dir = None
+
+    def set_working_directory(self, candidate_path: str):
+        """Set the working directory to the candidate path for scouting."""
+        self.working_dir = candidate_path
+
     def scout_project(self, main_goal: str) -> list[dict]:
         # Handle case where main_goal is None to prevent AttributeError
         if main_goal is None:
@@ -18,14 +25,15 @@ class Scout:
         logging.info(f"Starting BFS scout for goal: {main_goal}")
 
         # Collect all .py modules in the project directory
-        project_dir = './agent_tree/'
-        all_modules = collect_modules(project_dir)
+        if not self.working_dir:
+            raise ValueError("Working directory not set. Call set_working_directory first.")
+        all_modules = collect_modules(self.working_dir)
 
         logging.info(f"Found {len(all_modules)} modules in project")
 
         # Start BFS from root module
         start_module = 'agent_tree_main'
-        start_path = os.path.join(project_dir, 'agent_tree_main.py')
+        start_path = os.path.join(self.working_dir, 'agent_tree_main.py')
         if start_module not in all_modules:
             logging.error("Root module agent_tree_main.py not found")
             return []
@@ -66,7 +74,7 @@ class Scout:
                 logging.error(f"Error evaluating {current_module}: {e}")
 
             # Extract imported modules and add to queue
-            next_modules = self._extract_imported_modules(code, current_path, project_dir)
+            next_modules = self._extract_imported_modules(code, current_path, all_modules)
             for mod_name, import_reason in next_modules:
                 if mod_name not in visited and mod_name in all_modules:
                     print(f"DEBUG: Enqueuing next module '{mod_name}' (imported by {current_module})")
@@ -76,10 +84,9 @@ class Scout:
         logging.info(f"BFS completed: {len(backpack)} relevant modules in backpack")
         return backpack
 
-    def _extract_imported_modules(self, code, current_path, project_dir):
-        all_modules = collect_modules(project_dir)
+    def _extract_imported_modules(self, code, current_path, all_modules):
 
-        current_rel_path = os.path.relpath(current_path, project_dir)
+        current_rel_path = os.path.relpath(current_path, self.working_dir)
         current_module = current_rel_path.replace(os.sep, '.').replace('.py', '')
         current_package_parts = current_module.split('.')[:-1]
 

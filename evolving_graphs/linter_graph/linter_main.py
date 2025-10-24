@@ -9,18 +9,33 @@ Supports optional single-file mode when a _main.py file is specified.
 import os  # filesystem operations
 import sys  # system-specific parameters and functions
 
-from .linter_rules_recovery import check_architectural_recovery  # To diagnose and resolve architectural contradictions.
-from .linter_rules_importcomments import check_import_comments  # To validate explanatory comments on imports.
-from .linter_rules_importcompliance import check_imports_compliance  # To ensure imports comply with flat architecture rules.
-from .linter_rules_duplication import check_duplication  # To detect potential code duplication.
-from .linter_rules_filesize import check_file_sizes  # To enforce file size limits.
-from .linter_rules_compliance import check_final_compliance  # To perform final compliance check on modified files.
+# Handle imports for both package and standalone execution
+try:
+    from .linter_rules_recovery import check_architectural_recovery
+    from .linter_rules_importcomments import check_import_comments
+    from .linter_rules_importcompliance import check_imports_compliance
+    from .linter_rules_duplication import check_duplication
+    from .linter_rules_filesize import check_file_sizes
+    from .linter_rules_compliance import check_final_compliance
+except ImportError:
+    # Fallback for standalone execution
+    import sys
+    import os
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    if current_dir not in sys.path:
+        sys.path.insert(0, current_dir)
+    from linter_rules_recovery import check_architectural_recovery  # To diagnose and resolve architectural contradictions.
+    from linter_rules_importcomments import check_import_comments  # To validate explanatory comments on imports.
+    from linter_rules_importcompliance import check_imports_compliance  # To ensure imports comply with flat architecture rules.
+    from linter_rules_duplication import check_duplication  # To detect potential code duplication.
+    from linter_rules_filesize import check_file_sizes  # To enforce file size limits.
+    from linter_rules_compliance import check_final_compliance  # To perform final compliance check on modified files.
 
 
 def validate_file_argument(file_path):
-    """Validate that the provided file path is a valid _main.py file."""
-    if not file_path.endswith('_main.py'):
-        print(f"Error: File must end with '_main.py'. Provided: {file_path}")
+    """Validate that the provided file path is a valid Python file."""
+    if not file_path.endswith('.py'):
+        print(f"Error: File must end with '.py'. Provided: {file_path}")
         sys.exit(1)
 
     if not os.path.isfile(file_path):
@@ -51,7 +66,7 @@ def main():
     if len(sys.argv) > 1:
         if len(sys.argv) > 2:
             print("Usage: python -m linter.linter_main [optional_file_path]")
-            print("If file_path is provided, it must be a _main.py file.")
+            print("If file_path is provided, it must be a .py file.")
             sys.exit(1)
         target_file = validate_file_argument(sys.argv[1])
 

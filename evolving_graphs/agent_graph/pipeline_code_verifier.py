@@ -12,6 +12,21 @@ class Verifier:
     and optionally running available tests using pytest.
     """
 
+    def __init__(self):
+        """
+        Initialize the Verifier with no working directory set.
+        """
+        self.working_dir = None
+
+    def set_working_directory(self, working_dir: str):
+        """
+        Set the working directory for the Verifier to the candidate path.
+
+        Args:
+            working_dir: The path to the candidate directory.
+        """
+        self.working_dir = working_dir
+
     def verify_change(self, main_goal, proposed_code_change) -> dict:
         """
         Verifies a proposed code change by checking for Python syntax errors
@@ -42,11 +57,13 @@ class Verifier:
                 'error': f'Syntax error in code: {str(e)}'
             }
 
-        # Step 2: Check if tests directory exists and run pytest if it does
-        if os.path.isdir('tests'):
+        # Step 2: Check if tests directory exists in working_dir and run pytest if it does
+        tests_dir = os.path.join(self.working_dir, 'tests') if self.working_dir else 'tests'
+        if os.path.isdir(tests_dir):
             try:
-                # Run pytest and capture the result
-                result = subprocess.run(['pytest'], capture_output=True, text=True, cwd='.')
+                # Run pytest in the candidate directory context
+                cwd_path = self.working_dir if self.working_dir else '.'
+                result = subprocess.run(['pytest'], capture_output=True, text=True, cwd=cwd_path)
                 if result.returncode != 0:
                     # Pytest failed, include stdout and stderr in error
                     error_details = result.stdout + '\n' + result.stderr

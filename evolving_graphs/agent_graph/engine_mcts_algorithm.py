@@ -14,13 +14,13 @@
 #
 
 import math  # Standard library for mathematical operations, used in UCB1 formula
-from engine_search_node import Node # Data structure for MCTS tree nodes
+from .engine_search_node import Node # Data structure for MCTS tree nodes
 from .intelligence_code_executor import get_executor_response # Generates next code improvement
 from .intelligence_code_executor import execute_code # Executes code safely
 from .intelligence_code_evaluator import evaluate_code_quality # Evaluates code quality
 from .intelligence_llm_critic import get_critic_score # Scores code via LLM critic
 from .intelligence_prompt_tracker import track_prompt_performance # Tracks prompt performance
-from .backpack_formatter import format_backpack_context  # Formats backpack context
+from .agent_backpack_formatter import format_backpack_context  # Formats backpack context
 from .agent_config import config  # Configuration settings for MCTS parameters
 
 def run_mcts_cycle(root_node, main_goal):
