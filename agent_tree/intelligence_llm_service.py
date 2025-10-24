@@ -25,7 +25,15 @@ def chat_llm(prompt, model=None):
         model = config.MODEL
 
     try:
-        response = ollama.chat(model=model, messages=[{'role': 'user', 'content': prompt}])
+        # The 'options' parameter is added here to prevent the LLM from
+        # cutting off its response prematurely.
+        response = ollama.chat(
+            model=model,
+            messages=[{'role': 'user', 'content': prompt}],
+            options={
+                'num_predict': config.CONTEXT_LIMIT  # Max tokens for the LLM's response
+            }
+        )
         return response['message']['content'].strip()
     except Exception as e:
         raise Exception(f"LLM chat failed: {str(e)}")

@@ -2,19 +2,20 @@
 
 ## Project Description
 
-AgentTree is an autonomous AI agent that uses Monte Carlo Tree Search (MCTS) or linear pipeline approaches to generate and improve Python code. The system employs multiple AI personalities including Executor (code generation), Critic (quality evaluation), Evaluator (performance assessment), Tracker (learning and analytics), Scout (exploration), and Planner (strategy formulation) - working together through algorithmic processes to explore and optimize programming solutions.
+AgentTree is an autonomous AI agent system that implements an iterative pipeline approach to generate and improve Python code. The system leverages multiple specialized intelligence services working together through coordinated algorithmic processes to transform natural language goals into executable, high-quality code solutions.
 
-The agent builds code iteratively by expanding a search tree where each node represents a code state. The MCTS algorithm balances exploration and exploitation to find the most promising code variations, guided by actual code execution results and the Critic's quality assessments. The system maintains persistent memory, allowing it to resume code generation across sessions, and includes self-improvement mechanisms that learn from successful prompt patterns.
+The agent operates through a structured pipeline that integrates exploration, planning, code generation, execution, and evaluation phases. Each iteration refines the codebase through safe execution testing and multi-dimensional quality assessment. The system maintains persistent state across sessions and incorporates learning mechanisms to improve performance based on successful patterns.
 
 ## Features
 
-- **MCTS-Powered Code Generation**: Uses Monte Carlo Tree Search to explore and optimize code development
-- **Multi AI Personality System**: Executor generates new code, Critic evaluates functionality and correctness, Evaluator assesses performance, Tracker monitors learning, Scout explores new approaches, Planner creates strategic implementation plans
-- **Code Execution Testing**: Runs generated code safely to validate functionality
-- **Self-Improvement**: Learns from successful prompt patterns to improve future code generation
-- **Persistent Memory**: Saves and loads code progress between sessions
-- **Iterative Refinement**: Builds code through multiple search cycles with real execution feedback
-- **Ollama Integration**: Leverages local LLM models for code generation and evaluation
+- **Pipeline-Based Code Generation**: Iterative pipeline approach for systematic code development and improvement
+- **Multi AI Intelligence System**: Specialized intelligence services including Scout (exploration), Planner (strategy), LLM Service (Ollama integration), Code Evaluator (quality assessment), Code Executor (safe execution), Critic (review), and Prompt Tracker (learning)
+- **Safe Code Execution**: Sandboxed subprocess execution with timeout protection and resource limits
+- **Architectural Compliance**: Automated linting system ensuring adherence to shallow architecture principles
+- **State Persistence**: Saves and loads project state across sessions for continuous development
+- **Modular Intelligence Services**: Extensible architecture for adding new AI capabilities and specializations
+- **Ollama Integration**: Local LLM model support for code generation and evaluation
+- **Goal-Driven Development**: Accepts natural language goals and translates them into executable code
 
 ## Installation
 
@@ -22,7 +23,7 @@ The agent builds code iteratively by expanding a search tree where each node rep
 
 - Python 3.7 or higher
 - Ollama installed and running locally
-- 'gemma3:4b-it-qat' model pulled in Ollama
+- Required Ollama model: `gemma3:4b-it-qat` (or as configured in `agent_tree/agent_config.py`)
 
 ### Setup Steps
 
@@ -32,211 +33,238 @@ The agent builds code iteratively by expanding a search tree where each node rep
     cd SelfEvolveExperiment
     ```
 
-2. Install dependencies:
+2. Install Python dependencies:
     ```bash
     pip install -r requirements.txt
     ```
 
-3. Ensure Ollama is running and the required model is available:
+3. Start Ollama service and pull the required model:
     ```bash
+    # Start Ollama (if not running)
+    ollama serve
+
+    # Pull the configured model
     ollama pull gemma3:4b-it-qat
+    ```
+
+4. Verify installation:
+    ```bash
+    # Test the linter
+    python -m linter.linter_main
+
+    # Test the agent with a simple goal
+    python -m agent_tree.agent_tree_main --goal "Create a hello world function"
     ```
 
 ## Usage
 
-Run the code generation agent using:
+Run the AgentTree system using the command-line interface:
 
 ```bash
-python AgentTree/main.py
+python -m agent_tree.agent_tree_main --goal "Your programming goal here"
 ```
 
-The agent will start with a default programming goal (Monte Carlo pi calculation) and begin generating code using MCTS. Monitor the progress through console output showing:
-- Current turn number
-- Code being committed to the solution
-- MCTS cycle progress and execution results
-- Performance metrics and improvement tracking
+For example:
+```bash
+python -m agent_tree.agent_tree_main --goal "Write a Python function to calculate pi using Monte Carlo simulation with 10000 samples"
+```
+
+The agent will:
+- Initialize with the specified goal
+- Load any existing project state from previous sessions
+- Execute the development pipeline iteratively
+- Save progress automatically
+- Continue until the goal is achieved or maximum turns reached
+
+### Additional Commands
+
+**Run the Linter to check architectural compliance:**
+```bash
+python -m linter.linter_main
+```
+
+**Run on a specific main file:**
+```bash
+python -m linter.linter_main agent_tree/agent_tree_main.py
+```
 
 ### Interacting with the Agent
 
-- **Monitoring**: Observe code development, execution results, and improvement metrics
-- **Interrupting**: Use Ctrl+C to stop the agent and save current progress
-- **Resuming**: The agent automatically loads previous code sessions on restart
-- **Self-Improvement**: Agent learns from successful patterns and adapts its approach
+- **Monitoring**: Observe pipeline execution through detailed console output
+- **Interrupting**: Use Ctrl+C to gracefully stop execution and preserve state
+- **Resuming**: Previous sessions automatically resume from saved state
+- **Goal Management**: Goals are validated and persisted across sessions
 
 ## Architecture Overview
 
-AgentTree follows a modular architecture designed for autonomous code generation through Monte Carlo Tree Search (MCTS) or linear pipeline approaches. The system is organized into a hierarchical structure where each component plays a specific role in the iterative code refinement process.
+AgentTree follows a shallow, AI-friendly architecture designed for autonomous code generation. The system adheres to strict architectural rules that enforce modularity, clarity, and maintainability. All modules reside either in the root directory or direct subdirectories, with no nested subdirectories allowed.
 
-### Core Architecture Components
+### Core Architecture Principles
 
-The architecture consists of five main layers, each handling distinct responsibilities:
+The architecture is governed by the rules defined in `rules.md`, ensuring:
 
-#### 1. **Orchestration Layer** (`agent/`)
-- **Main Entry Point** (`main.py`): Simple launcher that initializes the agent
-- **Agent Core** (`agent.py`): Continuous loop managing the overall agent lifecycle, turn progression, and state persistence
+- **Shallow Architecture**: All modules in root directory or direct subdirectories only
+- **Semantic Naming**: Clear domain_responsibility.py naming convention
+- **Import Signposts**: Every import includes explanatory comments
+- **File Size Limits**: No file exceeds 300 lines
+- **DRY Enforcement**: No duplicated code blocks
+- **Designated Entry Points**: Main executables named [context]_main.py
 
-#### 2. **Search Engine Layer** (`agent/engine/`)
-- **MCTS Engine** (`mcts.py`): Implements the four-phase MCTS algorithm (Selection, Expansion, Simulation, Backpropagation)
-- **Node Structure** (`node.py`): Tree nodes containing code state, execution results, and performance metrics
+### Core Components
 
-#### 3. **Intelligence Layer** (`agent/intelligence/`)
-- **LLM Executor** (`llm_executor.py`): Generates new code solutions and variations
-- **LLM Critic** (`llm_critic.py`): Evaluates code quality, correctness, and functionality
-- **LLM Evaluator** (`llm_evaluator.py`): Assesses performance metrics and optimization opportunities
-- **LLM Tracker** (`llm_tracker.py`): Monitors learning patterns and analytics
-- **Scout** (`scout.py`): Explores new code approaches and innovative solutions
-- **Planner** (`planner.py`): Creates structured implementation plans and strategies
+#### **Agent Tree Module** (`agent_tree/`)
+The main autonomous agent system with the following key components:
 
-#### 4. **Utilities Layer** (`agent/utils/`)
-- **State Manager** (`state_manager.py`): Persistent memory management across sessions
-- **Configuration** (`config.py`): Centralized settings, prompt templates, and system parameters
+- **Main Entry Point** (`agent_tree_main.py`): Command-line interface accepting goal parameters
+- **Agent Core** (`agent_core.py`): Agent class managing goal-setting, validation, and execution loops
+- **Configuration** (`agent_config.py`): Centralized settings and model configurations
+- **Intelligence Services**:
+  - `intelligence_llm_service.py`: Standardized LLM chat interface using Ollama
+  - `intelligence_project_scout.py`: Project exploration and capability assessment
+  - `intelligence_plan_generator.py`: Strategic planning and implementation strategies
+  - `intelligence_code_evaluator.py`: Code quality and performance evaluation
+  - `intelligence_code_executor.py`: Safe code execution in sandboxed environments
+  - `intelligence_llm_critic.py`: Code critique and improvement suggestions
+  - `intelligence_prompt_tracker.py`: Learning from successful prompt patterns
 
-#### 5. **Execution Environment**
-- **Safe Code Execution**: Sandboxed subprocess execution with timeout protection
-- **Test Case Validation**: Automatic parsing and running of goal-embedded test cases
-- **Performance Tracking**: Self-improvement through historical prompt performance analysis
+- **Pipeline Services**:
+  - `pipeline_pipeline_runner.py`: Main pipeline orchestration and execution
+  - `pipeline_pipeline_executor.py`: Code modification and application
+  - `pipeline_code_verifier.py`: Code validation and quality checks
+
+- **Engine Components**:
+  - `engine_mcts_algorithm.py`: Monte Carlo Tree Search implementation
+  - `engine_search_node.py`: Search tree node structures and utilities
+
+- **Utilities**:
+  - `utils_collect_modules.py`: Module discovery and analysis
+  - `utils_state_persistence.py`: Session state saving and loading
+  - `backpack_formatter.py`: Context formatting for LLM interactions
+
+#### **Linter Module** (`linter/`)
+Automated code quality and architectural compliance checker:
+
+- **Main Entry Point** (`linter_main.py`): Command-line interface for rule validation
+- **Rule Checkers**:
+  - `linter_rules_recovery.py`: Architectural recovery and violation diagnosis
+  - `linter_rules_importcomments.py`: Import comment validation
+  - `linter_rules_importcompliance.py`: Import structure compliance
+  - `linter_rules_duplication.py`: Code duplication detection
+  - `linter_rules_filesize.py`: File size limit enforcement
+  - `linter_rules_compliance.py`: Final compliance verification
+- **Core Utilities** (`linter_utils_core.py`): Shared linter functionality
 
 ### Data Flow Architecture
 
-The agent's operation follows a cyclical data flow pattern:
+The AgentTree system follows a pipeline-based data flow with integrated intelligence services:
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Agent Loop    │───▶│   MCTS Cycle    │───▶│   Code State    │
-│   (agent.py)    │    │   (mcts.py)     │    │   Updates       │
+│   Goal Input    │───▶│   Agent Core    │───▶│   Pipeline      │
+│   (--goal)      │    │   (agent_core)  │    │   Runner        │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                        │                        │
-         │                        │                        │
-         ▼                        ▼                        ▼
+          │                        │                        │
+          │                        │                        │
+          ▼                        ▼                        ▼
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  State Memory   │◀───│   LLM Calls     │    │  Execution     │
-│ (state_manager) │    │ (intelligence)  │    │  Results       │
+│  State Memory   │◀───│ Intelligence    │───▶│  Code Output    │
+│ (persistence)   │    │ Services        │    │  (execution)    │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
-#### Detailed Data Flow:
+#### Detailed Pipeline Flow:
 
-1. **Initialization**: Load previous session state or start with default code
-2. **MCTS Selection**: Traverse tree using UCB1 formula to find promising nodes
-3. **Expansion**: Generate new code variations via Executor LLM prompts, with Scout exploring alternative approaches
-4. **Simulation**: Execute code safely and evaluate with multi-dimensional metrics:
-   - Runtime execution results
-   - Test case pass rates
-   - Critic LLM quality assessment
-   - Evaluator performance analysis
-   - Tracker learning insights
-5. **Backpropagation**: Update tree statistics up to root node
-6. **Commitment**: Select best child node as next code state
-7. **Persistence**: Save progress and repeat cycle
+1. **Goal Processing**: Parse and validate natural language goals
+2. **State Loading**: Resume from previous session state if available
+3. **Intelligence Gathering**: Scout explores requirements, Planner creates strategy
+4. **Code Generation**: LLM service generates initial code solutions
+5. **Code Execution**: Safe sandboxed execution with timeout protection
+6. **Evaluation Loop**: Code Evaluator and Critic assess quality and functionality
+7. **Iteration**: Pipeline runner coordinates multiple cycles of improvement
+8. **Persistence**: Save successful results and learned patterns
 
 ### Key Design Patterns
 
-#### Multi AI Personality Pattern
+#### Intelligence Service Pattern
 ```python
-# Multiple AI personalities work together
-response = llm_executor.generate_code(goal, current_code)
-critic_score = llm_critic.evaluate_quality(goal, generated_code)
-evaluator_score = llm_evaluator.assess_performance(generated_code)
-tracker_insights = llm_tracker.analyze_patterns()
-scout_exploration = scout.explore_alternatives(goal)
-plan = planner.create_plan(goal, backpack_context)
+# Modular intelligence services with clear responsibilities
+scout = Scout()  # Exploration and capability assessment
+planner = Planner()  # Strategic planning and goal decomposition
+llm_service = LLMService()  # Standardized AI model interactions
+evaluator = CodeEvaluator()  # Quality and performance assessment
+executor = CodeExecutor()  # Safe code execution
+```
+
+#### Pipeline Orchestration Pattern
+```python
+# Coordinated pipeline execution with state management
+pipeline_runner = PipelineRunner(goal, current_state)
+while not goal_achieved and turns < max_turns:
+    result = pipeline_runner.run_pipeline()
+    if result['success']:
+        goal_achieved = True
+    turns += 1
 ```
 
 #### Safe Execution Pattern
 ```python
-# Isolated subprocess execution with resource limits
-result = subprocess.run(['python', temp_file],
-                       capture_output=True,
-                       timeout=30,
-                       cwd=temp_dir)
+# Sandboxed execution with resource controls
+result = subprocess.run(['python', code_file],
+                        capture_output=True,
+                        timeout=30,
+                        cwd=safe_directory)
 ```
 
-#### Self-Improvement Pattern
-```python
-# Learn from successful prompt patterns
-best_prompts = get_best_prompt_variations(limit=3)
-# Adapt future prompts based on historical performance
-```
+### State Persistence Architecture
 
-### MCTS Algorithm Implementation
+The system maintains comprehensive state across sessions:
 
-The MCTS implementation follows the standard four-phase algorithm with code-specific adaptations:
+- **Goal Persistence**: Current development goals saved and validated
+- **Code State**: Current codebase state with execution history
+- **Learning Data**: Performance metrics and successful patterns
+- **Configuration**: Model settings and system parameters
 
-#### Selection Phase
-Uses UCB1 formula to balance exploration/exploitation:
-```python
-ucb_value = (node.value / node.visits) + math.sqrt(2 * math.log(parent.visits) / node.visits)
-```
+### Compliance and Quality Assurance
 
-#### Expansion Phase
-Generates new code variations when reaching unexplored nodes:
-```python
-new_code = llm_executor.generate_code(goal, node.document_state)
-scout_variations = scout.explore_alternatives(goal, node.document_state)
-combined_variations = [new_code] + scout_variations
-new_nodes = [Node(document_state=variation, parent=node, plan=variation) for variation in combined_variations]
-```
+Built-in architectural compliance through the linter system ensures:
 
-#### Simulation Phase
-Combines actual execution with multi-dimensional AI evaluation:
-```python
-execution_result = execute_code(node.document_state)
-critic_score = llm_critic.evaluate_quality(node.document_state, goal)
-evaluator_score = llm_evaluator.assess_performance(node.document_state, execution_result)
-tracker_insights = llm_tracker.analyze_learning(node.document_state, execution_result)
-combined_score = (execution_result.score + critic_score + evaluator_score + tracker_insights) // 4
-```
+- **Import Clarity**: All custom imports include explanatory comments
+- **File Size Control**: Automatic refactoring triggers for large files
+- **Duplication Prevention**: Detection and elimination of code clones
+- **Naming Standards**: Semantic domain_responsibility.py naming
+- **Architecture Integrity**: Shallow structure maintenance
 
-#### Backpropagation Phase
-Updates statistics throughout the tree:
-```python
-while temp_node:
-    temp_node.visits += 1
-    temp_node.value += score
-    temp_node = temp_node.parent
-```
+## Dependencies
 
-### Self-Improvement System
+This project has minimal dependencies focused on AI model integration and testing:
 
-The agent maintains a learning loop through prompt performance tracking:
+### Core Dependencies
+- **ollama**: Local LLM model integration for AI-powered code generation and evaluation
+- **pytest**: Testing framework for validation and quality assurance
 
-- **Performance Logging**: JSON-based storage of prompt effectiveness metrics
-- **Success Pattern Analysis**: Identifies high-performing prompt variations
-- **Adaptive Prompt Engineering**: Injects successful patterns into future generations
-- **Historical Learning**: Maintains rolling window of recent performance data
+### System Requirements
+- Python 3.7+
+- Ollama runtime environment
+- Local LLM model (gemma3:4b-it-qat by default)
 
-### Key Insights
+## Contributing
 
-#### Architectural Strengths
-- **Modular Design**: Clear separation of concerns enables easy extension and maintenance
-- **Persistent State**: Session resumption prevents loss of progress
-- **Safe Execution**: Sandboxed code running prevents system compromise
-- **Dual Evaluation**: Combined runtime and AI assessment provides robust quality metrics
-- **Self-Learning**: Continuous improvement through performance feedback loops
+This project follows strict architectural guidelines defined in `rules.md`. All contributions must:
 
-#### Technical Trade-offs
-- **Computational Cost**: MCTS exploration requires multiple LLM calls per cycle
-- **Memory Usage**: Growing search tree demands efficient pruning strategies
-- **Execution Time**: Safe subprocess execution adds overhead compared to direct evaluation
-- **Prompt Complexity**: Self-improvement system increases prompt engineering complexity
+1. Pass all linter checks: `python -m linter.linter_main`
+2. Maintain shallow architecture (no nested subdirectories)
+3. Include explanatory comments on all custom imports
+4. Keep files under 300 lines
+5. Avoid code duplication
+6. Follow semantic naming conventions (domain_responsibility.py)
 
-#### Scalability Considerations
-- **Parallelization**: MCTS phases can be distributed across multiple processes
-- **Caching**: Execution results and prompt responses can be cached for efficiency
-- **Pruning**: Tree size management through selective node retention
-- **Batch Processing**: Multiple test cases can be evaluated simultaneously
+### Development Workflow
 
-## Architectural Guidelines
+1. Make changes to relevant modules
+2. Run linter to check compliance: `python -m linter.linter_main`
+3. Test functionality with sample goals
+4. Update documentation as needed
 
-- **File Size**: No file you create or modify may exceed 300 lines.
-- **Refactoring Trigger**: If a file approaches this limit, immediately refactor by moving cohesive functions to a new, well-named module.
-- **The Golden Rule - Import Signposts**: For every custom module you import, you must add a comment on the same line explaining that module's purpose and its role in the current file. This is the most important rule.
-- **Directory Cohesion and Size**: A directory should represent a single, cohesive responsibility. When a directory contains more than seven files, or its files serve multiple purposes, it must be refactored by creating more specific, well-named subdirectories.
+## License
 
-### Configuration
-
-- **Model**: gemma3:4b-it-qat via Ollama
-- **MCTS Iterations**: 10 cycles per turn
-- **Goal**: Write Python function to calculate pi using Monte Carlo method
-- **Memory**: agent_memory_current.txt and agent_memory_previous.txt
-- **Performance Logs**: prompt_performance.json and improvement_history.txt
+See LICENSE file for licensing information.

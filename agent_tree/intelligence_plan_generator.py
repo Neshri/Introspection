@@ -1,5 +1,6 @@
 import json  # JSON handling for structured plan output
 import ollama  # LLM interface for generating plans based on goals and context
+import re # Make sure to import the regular expression module at the top of the file
 from .intelligence_llm_service import chat_llm  # Standardized LLM service
 from .agent_config import config  # Configuration settings for model selection and prompt templates
 
@@ -29,10 +30,21 @@ class Planner:
             insights=formatted_insights
         )
 
-        plan = chat_llm(prompt)
-        print(f"DEBUG: LLM generated final plan: {plan[:100]}...")
+        llm_output = chat_llm(prompt)
+        print(f"DEBUG: LLM generated raw output: {llm_output[:120]}...")
 
-        # Validate that the plan is valid JSON, with a robust fallback
+        # --- NEW: Add this cleanup block ---
+        # Robustly find and extract JSON from within markdown fences
+        json_match = re.search(r"```json\s*(\{.*?\})\s*```", llm_output, re.DOTALL)
+        if json_match:
+            print("DEBUG: Extracted JSON from markdown block.")
+            plan = json_match.group(1)
+        else:
+            # If no markdown block is found, assume the output is already clean JSON
+            plan = llm_output
+        # --- End of cleanup block ---
+
+        # Now, validate the cleaned plan
         try:
             json.loads(plan)
             print("DEBUG: Generated plan is valid JSON")
@@ -41,9 +53,9 @@ class Planner:
             print("DEBUG: Plan JSON validation failed, wrapping in basic structure")
             return json.dumps({
                 "goal": main_goal,
-                "steps": [f"LLM produced non-JSON plan: {plan}"],
+                "steps": [f"LLM produced non-JSON plan after cleanup attempt: {plan}"],
                 "estimated_complexity": "high",
-                "risk_assessment": "Failed to synthesize a structured plan from insights. The LLM's output was not valid JSON."
+                "risk_assessment": "Failed to synthesize a structured plan from insights. The LLM's output was not valid JSON even after cleanup."
             })
 
     def create_plan(self, main_goal: str, backpack: list[dict]) -> str:
@@ -73,7 +85,7 @@ class Planner:
             item_content = f"File: {item['file_path']}\nJustification: {item['justification']}\nContent:\n{item['full_code']}\n\n"
             item_size = len(item_content)
 
-            if current_batch_size + item_size > config.PLANNER_CONTEXT_LIMIT:
+            if current_batch_size + item_size > config.CONTEXT_LIMIT:
                 if current_batch_content:
                     batches.append(current_batch_content)
                 current_batch_content = item_content

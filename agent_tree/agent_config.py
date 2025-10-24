@@ -6,6 +6,9 @@
 
 class Config:
     MODEL = 'gemma3:4b-it-qat'
+    # Context limit for a single request to avoid overloading the LLM.
+    CONTEXT_LIMIT = 8192
+
     INITIAL_GOAL = "Improve the self-improvement system by adding logging for when a prompt fails."
     MCTS_ITERATIONS_PER_STEP = 10
 
@@ -16,11 +19,6 @@ class Config:
     IMPROVEMENT_HISTORY = "improvement_history.txt"
 
     # --- Planner Configuration (Hierarchical Map-Reduce) ---
-
-    # Context limit for a single planner request to avoid overloading the LLM.
-    # Set this to a safe value for your model (e.g., 7000 for an 8k model).
-    PLANNER_CONTEXT_LIMIT = 7000
-
     # (Map Phase) Prompt for generating insights from a batch of files.
     PLANNER_INSIGHT_PROMPT_TEMPLATE = """
     As a senior software architect, your task is to analyze a batch of code in relation to a primary goal.
