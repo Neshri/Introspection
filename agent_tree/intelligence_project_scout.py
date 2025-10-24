@@ -6,6 +6,7 @@ import logging  # Logging for debugging and progress tracking
 import ollama  # LLM interface for semantic analysis of code relevance
 from .intelligence_llm_service import chat_llm  # Standardized LLM service
 from .agent_config import config  # Configuration settings for model selection and parameters
+from .utils_collect_modules import collect_modules  # To collect all Python modules in the project directory
 
 class Scout:
     def scout_project(self, main_goal: str) -> list[dict]:
@@ -14,65 +15,98 @@ class Scout:
             logging.warning("main_goal is None, defaulting to empty string")
             main_goal = ""
 
-        logging.info(f"Starting scout for goal: {main_goal}")
+        logging.info(f"Starting BFS scout for goal: {main_goal}")
 
-        # Extract keywords from goal using improved method
-        keywords = self._extract_keywords_from_goal(main_goal)
-        logging.info(f"Extracted keywords: {keywords}")
+        # Collect all .py modules in the project directory
+        project_dir = './agent_tree/'
+        all_modules = collect_modules(project_dir)
 
-        # Traverse ./AgentTree/ for .py files
-        py_files = []
-        for root, dirs, files in os.walk('./AgentTree/'):
-            for file in files:
-                if file.endswith('.py'):
-                    py_files.append(os.path.join(root, file))
+        logging.info(f"Found {len(all_modules)} modules in project")
 
-        logging.info(f"Found {len(py_files)} Python files to analyze")
+        # Start BFS from root module
+        start_module = 'agent_tree_main'
+        start_path = os.path.join(project_dir, 'agent_tree_main.py')
+        if start_module not in all_modules:
+            logging.error("Root module agent_tree_main.py not found")
+            return []
 
-        # Phase 1: Syntactic Filtering (relaxed)
-        candidates = []
-        for file_path in py_files:
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    code = f.read()
-                tree = ast.parse(code)
-                elements = self._extract_elements(tree)
-                elements_str = ' '.join(elements).lower()
+        queue = [(start_module, "entry point", start_path)]  # (module_name, reason, path)
+        visited = set()
+        backpack = []
 
-                # More permissive matching: check if any keyword appears anywhere in elements
-                if any(keyword in elements_str for keyword in keywords):
-                    candidates.append(file_path)
-                    logging.debug(f"Phase 1 candidate: {file_path}")
-            except Exception as e:
-                logging.warning(f"Failed to parse {file_path}: {e}")
+        while queue:
+            current_module, reason, current_path = queue.pop(0)
+            if current_module in visited:
                 continue
+            visited.add(current_module)
+            print(f"DEBUG: Marked '{current_module}' as visited")
 
-        logging.info(f"Phase 1 filtering: {len(candidates)} candidates from {len(py_files)} files")
+            logging.info(f"Visiting {current_module} for reason: {reason}")
+            print(f"DEBUG: Visiting module '{current_module}' for reason: {reason}")
 
-        # Phase 2: Deep Semantic Analysis with structured JSON
-        results = []
-        for file_path in candidates:
+            # Evaluate relevance using LLM
+            print(f"DEBUG: Evaluating relevance of '{current_module}'")
             try:
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(current_path, 'r', encoding='utf-8') as f:
                     code = f.read()
-
-                response_json = get_scout_response(main_goal, file_path, code)
+                response_json = get_scout_response(main_goal, current_path, code)
                 if response_json.get('relevant', False):
-                    results.append({
-                        "file_path": file_path,
+                    print(f"DEBUG: Module '{current_module}' is relevant, adding to backpack")
+                    backpack.append({
+                        "file_path": current_path,
                         "justification": response_json.get('justification', 'No justification provided'),
                         "key_elements": response_json.get('key_elements', []),
                         "full_code": code
                     })
-                    logging.debug(f"Phase 2 relevant: {file_path}")
+                    logging.debug(f"Relevant: {current_module}")
                 else:
-                    logging.debug(f"Phase 2 not relevant: {file_path}")
+                    print(f"DEBUG: Module '{current_module}' is not relevant")
+                    logging.debug(f"Not relevant: {current_module}")
             except Exception as e:
-                logging.error(f"Error in Phase 2 for {file_path}: {e}")
-                continue
+                logging.error(f"Error evaluating {current_module}: {e}")
 
-        logging.info(f"Phase 2 analysis: {len(results)} relevant files found")
-        return results
+            # Extract imported modules and add to queue
+            next_modules = self._extract_imported_modules(code, current_path, project_dir)
+            for mod_name, import_reason in next_modules:
+                if mod_name not in visited and mod_name in all_modules:
+                    print(f"DEBUG: Enqueuing next module '{mod_name}' (imported by {current_module})")
+                    queue.append((mod_name, f"imported by {current_module} ({import_reason})", all_modules[mod_name]))
+
+        print(f"DEBUG: BFS completed, backpack contains {len(backpack)} relevant modules")
+        logging.info(f"BFS completed: {len(backpack)} relevant modules in backpack")
+        return backpack
+
+    def _extract_imported_modules(self, code, current_path, project_dir):
+        all_modules = collect_modules(project_dir)
+
+        current_rel_path = os.path.relpath(current_path, project_dir)
+        current_module = current_rel_path.replace(os.sep, '.').replace('.py', '')
+        current_package_parts = current_module.split('.')[:-1]
+
+        imported = set()
+        try:
+            tree = ast.parse(code)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom):
+                    if node.module:
+                        level = node.level if hasattr(node, 'level') and node.level else 0
+                        mod_name = node.module.split('.')[0]
+                        if level == 0:
+                            possible = [mod_name]
+                        elif level == 1:
+                            possible = ['.'.join(current_package_parts + [mod_name]), mod_name]
+                        elif level == 2:
+                            parent_parts = current_package_parts[:-1] if len(current_package_parts) > 0 else []
+                            possible = ['.'.join(parent_parts + [mod_name]), mod_name]
+                        else:
+                            possible = [mod_name]
+                        for p in possible:
+                            if p in all_modules:
+                                imported.add((p, f"imported {node.module}"))
+                                break
+        except Exception as e:
+            logging.warning(f"Failed to parse imports in {current_path}: {e}")
+        return list(imported)
 
     def _extract_elements(self, tree):
         elements = []

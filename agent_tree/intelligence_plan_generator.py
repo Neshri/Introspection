@@ -22,6 +22,9 @@ class Planner:
         Returns:
             str: A structured plan in JSON format containing steps to achieve the goal
         """
+        print(f"DEBUG: Planner received goal: {main_goal}")
+        print(f"DEBUG: Planner received backpack with {len(backpack)} items")
+
         # Format backpack context for the prompt
         backpack_context = ""
         if backpack:
@@ -32,20 +35,26 @@ class Planner:
         else:
             backpack_context = "No relevant files identified."
 
+        print(f"DEBUG: Planning based on goal '{main_goal}' with backpack context length: {len(backpack_context)}")
+
         # Create the prompt using the template
         prompt = config.PLANNER_PROMPT_TEMPLATE.format(
             goal=main_goal,
             backpack_context=backpack_context
         )
 
+        print("DEBUG: Calling LLM to generate plan...")
         # Call the LLM to generate the plan
         plan = chat_llm(prompt)
+        print(f"DEBUG: LLM generated plan: {plan[:100]}...")  # Truncate for brevity
 
         # Validate that the plan is valid JSON
         try:
             json.loads(plan)  # Validate JSON structure
+            print("DEBUG: Generated plan is valid JSON")
         except json.JSONDecodeError:
             # If JSON parsing fails, wrap in a basic structure
+            print("DEBUG: Plan JSON validation failed, wrapping in basic structure")
             plan = json.dumps({
                 "goal": main_goal,
                 "steps": [plan],
@@ -53,4 +62,5 @@ class Planner:
                 "risk_assessment": "Unable to parse structured plan from LLM response"
             })
 
+        print(f"DEBUG: Returning final plan with length: {len(plan)}")
         return plan
