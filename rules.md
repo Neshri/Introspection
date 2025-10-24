@@ -38,6 +38,8 @@ Import and API Rules:
 
         From a subdirectory into the root: Forbidden, as no modules exist in the root.
 
+        Exception: Entry point modules (named [context]_main.py) may use absolute imports for dependencies within the same component, provided they include mandatory comments.
+
     Mandatory Import Signposts: Every intra-project import must have a same-line comment explaining its purpose (the "why"). The comment, excluding the preceding #, must not exceed 60 characters.
 
         Correct: from .agent_planner import Planner # To generate the next sequence of actions.

@@ -32,8 +32,8 @@ class Scout:
         logging.info(f"Found {len(all_modules)} modules in project")
 
         # Start BFS from root module
-        start_module = 'agent_tree_main'
-        start_path = os.path.join(self.working_dir, 'agent_tree_main.py')
+        start_module = 'agent_graph_main'
+        start_path = os.path.join(self.working_dir, 'agent_graph_main.py')
         if start_module not in all_modules:
             logging.error("Root module agent_tree_main.py not found")
             return []

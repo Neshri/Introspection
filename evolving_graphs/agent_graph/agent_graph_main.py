@@ -8,16 +8,8 @@
 #
 
 import argparse  # Standard library for command-line argument parsing
-import sys  # Standard library for system-specific parameters and functions
-import os  # Standard library for operating system interfaces
 
-# Add the parent directory to the Python path to enable absolute imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-import agent_core  # Import the module to make Agent accessible via dot notation
-
-# Use the imported module's Agent class
-Agent = agent_core.Agent
+from evolving_graphs.agent_graph.agent_core import Agent # To access the Agent class for goal-setting and management.
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the Agent with a specified goal.")
