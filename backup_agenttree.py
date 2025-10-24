@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-AgentTree Backup Script
+agent_tree Backup Script
 
-This script creates a timestamped backup of the AgentTree folder and important data files.
-It copies the entire AgentTree directory to a new backup folder in the project root.
+This script creates a timestamped backup of the agent_tree folder and important data files.
+It copies the entire agent_tree directory to a new backup folder in the project root.
 Includes any existing agent_memory_current.txt file.
 
-Usage: python backup_agenttree.py
+Usage: python backup_agent_tree.py
 """
 
 import os
@@ -19,10 +19,10 @@ def main():
 
     # Generate timestamp for backup folder
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_folder_name = f"AgentTree_Backup_{timestamp}"
+    backup_folder_name = f"agent_tree_Backup_{timestamp}"
     backup_path = os.path.join(project_root, backup_folder_name)
 
-    print("Starting AgentTree backup...")
+    print("Starting agent_tree backup...")
 
     try:
         # Create backup directory
@@ -30,16 +30,16 @@ def main():
         print(f"Created backup directory: {backup_folder_name}")
 
         # Source paths
-        agenttree_src = os.path.join(project_root, "AgentTree")
+        agent_tree_src = os.path.join(project_root, "agent_tree")
         memory_file_src = os.path.join(project_root, "agent_memory_current.txt")
 
-        # Copy AgentTree folder
-        if os.path.exists(agenttree_src):
-            agenttree_dst = os.path.join(backup_path, "AgentTree")
-            shutil.copytree(agenttree_src, agenttree_dst)
-            print("Copied AgentTree folder successfully.")
+        # Copy agent_tree folder
+        if os.path.exists(agent_tree_src):
+            agent_tree_dst = os.path.join(backup_path, "agent_tree")
+            shutil.copytree(agent_tree_src, agent_tree_dst)
+            print("Copied agent_tree folder successfully.")
         else:
-            raise FileNotFoundError("AgentTree folder not found in project root.")
+            raise FileNotFoundError("agent_tree folder not found in project root.")
 
         # Copy agent_memory_current.txt if it exists
         if os.path.exists(memory_file_src):
