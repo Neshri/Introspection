@@ -10,9 +10,9 @@ def check_imports_compliance(target_files=None):
 
     # Determine which files to check
     if target_files is None:
-        # Default behavior: scan all .py files in agent_tree
+        # Default behavior: scan all .py files in evolving_graphs
         files_to_check = []
-        for root, dirs, files in os.walk('agent_tree'):
+        for root, dirs, files in os.walk('evolving_graphs'):
             for file in files:
                 if file.endswith('.py'):
                     files_to_check.append(os.path.join(root, file))

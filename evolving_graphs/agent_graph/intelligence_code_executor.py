@@ -6,71 +6,14 @@
 # - agent.utils.config: To get the model name and prompt templates.
 #
 
-import ollama  # LLM interface for code generation
-import subprocess  # Safe code execution in subprocess
-import time  # Performance timing for execution
-import tempfile  # Temporary file creation for safe execution
-import os  # File system operations for temp files
 import json  # JSON handling for plan data
 from .agent_backpack_formatter import format_backpack_context  # Context formatting utility
 from .intelligence_llm_service import chat_llm  # Standardized LLM service
 from .agent_config import config  # Configuration for prompts and settings
-
-# Configuration constants for iterative backpack processing
-BACKPACK_CHUNK_SIZE_LIMIT = 4000  # Maximum tokens/chars per chunk
-MAX_ITERATION_LIMIT = 5  # Maximum number of iterative LLM calls
-
-def chunk_backpack_by_size(backpack, chunk_size_limit=BACKPACK_CHUNK_SIZE_LIMIT):
-    """
-    Splits the backpack into smaller chunks based on total code size.
-
-    Args:
-        backpack: List of dict items with 'file_path', 'justification', and 'full_code' keys
-        chunk_size_limit: Maximum size (chars/tokens) per chunk
-
-    Returns:
-        list: List of backpack chunks, each under the size limit
-    """
-    if not backpack:
-        return []
-
-    chunks = []
-    current_chunk = []
-    current_size = 0
-
-    for item in backpack:
-        item_size = len(item.get('full_code', '')) + len(item.get('justification', '')) + len(item.get('file_path', ''))
-
-        # If adding this item would exceed the limit and we have items in current chunk, start new chunk
-        if current_size + item_size > chunk_size_limit and current_chunk:
-            chunks.append(current_chunk)
-            current_chunk = []
-            current_size = 0
-
-        # If a single item exceeds the limit, include it in its own chunk (force it)
-        if item_size > chunk_size_limit:
-            if current_chunk:
-                chunks.append(current_chunk)
-            chunks.append([item])
-            current_chunk = []
-            current_size = 0
-        else:
-            current_chunk.append(item)
-            current_size += item_size
-
-    # Add the last chunk if it has items
-    if current_chunk:
-        chunks.append(current_chunk)
-
-    return chunks
-
-def load_architectural_rules():
-    """Load architectural rules from rules.md file for dynamic embedding."""
-    try:
-        with open('rules.md', 'r', encoding='utf-8') as f:
-            return f.read()
-    except FileNotFoundError:
-        return "Architectural rules not found. Ensure rules.md exists in the project root."
+from .intelligence_backpack_utils import (chunk_backpack_by_size, load_architectural_rules,
+                                          _build_prompt_sections, BACKPACK_CHUNK_SIZE_LIMIT,
+                                          MAX_ITERATION_LIMIT)  # Backpack processing utilities
+from .intelligence_execution_utils import execute_code  # Safe code execution utilities
 
 def get_executor_response(goal, document, backpack=None, plan=None, working_dir=None):
     """Generates the next code improvement using the Executor prompt with self-improvement."""
@@ -229,101 +172,3 @@ Generate ONLY complete Python code as output (no explanations, no markdown, no c
 
     print(f"DEBUG: Iterative processing completed, final code length: {len(accumulated_code)}")
     return accumulated_code
-
-def execute_code(code):
-    """
-    Executes Python code safely using subprocess and returns execution results.
-
-    Returns a dict with:
-    - success: bool
-    - output: str (stdout)
-    - error: str (stderr)
-    - execution_time: float (seconds)
-    """
-    result = {
-        'success': False,
-        'output': '',
-        'error': '',
-        'execution_time': 0.0
-    }
-
-    # Create temporary file for the code
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-        f.write(code)
-        temp_file = f.name
-
-    try:
-        start_time = time.time()
-
-        # Execute with timeout and resource limits
-        process = subprocess.run(
-            ['python', temp_file],
-            capture_output=True,
-            text=True,
-            timeout=30,  # 30 second timeout
-            cwd=os.path.dirname(temp_file)  # Run in temp directory
-        )
-
-        end_time = time.time()
-        result['execution_time'] = end_time - start_time
-        result['output'] = process.stdout.strip()
-        result['error'] = process.stderr.strip()
-        result['success'] = process.returncode == 0
-
-    except subprocess.TimeoutExpired:
-        result['error'] = "Execution timed out after 30 seconds"
-        result['success'] = False
-    except Exception as e:
-        result['error'] = f"Execution failed: {str(e)}"
-        result['success'] = False
-    finally:
-        # Clean up temp file
-        try:
-            os.unlink(temp_file)
-        except:
-            pass
-
-    return result
-
-# Helper function to build common prompt sections
-def _build_prompt_sections(architectural_rules, plan=None, working_dir=None):
-    """Helper function to build common prompt sections to avoid duplication."""
-    sections = []
-
-    # Architectural rules
-    sections.append(f"\n\n**Architectural Rules (MANDATORY COMPLIANCE):**\n{architectural_rules}\n")
-
-    # File reference guidance
-    sections.append("""
-**File Naming and Reference Guidelines:**
-- Use correct file names: e.g., 'agent_core.py' for Agent class, 'intelligence_plan_generator.py' for Planner, etc.
-- Follow domain_responsibility.py pattern: e.g., 'pipeline_code_verifier.py', 'agent_backpack_formatter.py'
-- Entry points: Use [context]_main.py format (e.g., 'agent_graph_main.py')
-- Utility modules: Use [component]_utils_[purpose].py (e.g., 'utils_state_persistence.py')
-
-**Import Guidelines:**
-- Use ONLY relative imports: from .module_name import ClassName # Brief purpose comment
-- Intra-component: from .sibling_module import X
-- Inter-component: from ..directory_name.module_name import X
-- Examples: from .agent_config import config # Configuration settings
-- NO absolute imports except in entry point modules with mandatory comments
-- NO __init__.py imports (all imports must be direct and explicit)
-
-**Code Structure Requirements:**
-- Files ≤ 300 non-empty, non-comment lines
-- No duplicated logic blocks (5+ contiguous lines)
-- Extract duplicates to utility modules like 'agent_graph_utils_core.py'
-- Use semantic naming with clear responsibilities
-
-""")
-
-    # Plan context
-    if plan:
-        plan_json = json.dumps(plan, indent=2)
-        sections.append(f"\n\n**Plan Context:**\n{plan_json}\n")
-
-    # Working directory context
-    if working_dir:
-        sections.append(f"\n\n**Working Directory:**\nAll code changes should be generated relative to the working directory: {working_dir}\nIf writing files, ensure they target this candidate directory for consistency.\n")
-
-    return "".join(sections)

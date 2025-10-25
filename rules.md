@@ -12,11 +12,11 @@ Core Structure & The Genome:
 
     The Genome: The /evolving_graphs/ directory is a self-contained "Genome."
 
-    Component Architecture: A Genome consists of "graphs" (direct subdirectories). All modules must belong to a specific graph.
+    Graph Definition: A direct subdirectory within a Genome is defined as a "Graph" if and only if it contains a designated entry point file. Directories without an entry point (e.g., __pycache__) are not Graphs.
 
     Semantic Naming: Module filenames must be domain_responsibility.py.
 
-    Designated Entry Points: Each graph must have a [context]_main.py entry point.
+    Designated Entry Points: Each Graph must have one [graph_name]_main.py entry point.
 
     Module Token Limit: Modules must not exceed 3,000 tokens (tiktoken).
 
@@ -26,25 +26,27 @@ Recursive Evolution & Execution:
 
     Recursive Evolution Protocol: To create a child MCTS node, a complete copy of the parent Genome must be placed in a candidates/[candidate_id]/ subdirectory at the parent's root.
 
-        Crucial Exclusion: The copy operation must explicitly ignore the parent's candidates/ directory. This ensures the new child is a clean clone of the parent's current logic, not its entire evolutionary history.
+        Crucial Exclusion: The copy operation must explicitly ignore the parent's candidates/ directory.
 
     Strictly Relative Paths: All file access and execution paths must be relative. A Genome must not traverse upwards (../).
 
-    Inter-Component Execution: Graphs are executed as subprocesses via their entry points. Direct cross-graph imports are forbidden.
+    Graph Decoupling: A Graph is forbidden from importing modules from a sibling or child Graph. Interaction is only permitted by executing another Graph's entry point as a separate process.
 
 Imports & API:
 
-    Strictly Relative Imports: All Python imports within a Genome must be relative.
+    Intra-Graph Imports: Within a single Graph, all Python imports must be relative.
 
     Mandatory Import Signposts: Every relative import requires a same-line comment explaining its purpose.
 
     Empty __init__.py: All __init__.py files must be empty.
 
-State & Pipeline Integrity:
+State & Role Integrity:
 
-    Orchestrator Pattern: A single orchestrator class (e.g., PipelineRunner) must manage the operational sequence. It is responsible for initializing all roles (Scout, Planner, etc.) and holding the primary state (main_goal, database connections).
+    Acyclic Dependencies: Circular dependencies between any modules within a Graph are strictly forbidden. The import graph must be a Directed Acyclic Graph (DAG).
 
-    Linear Data Flow: The orchestrator must explicitly pass data between roles, with the output of one role becoming the input for the next (e.g., plan = self.planner.create_plan(..., backpack)). Roles are forbidden from directly accessing the state of other sibling roles; all communication must be managed by the orchestrator.
+    Orchestrator Privilege: Within a Graph, a single orchestrator class (e.g., PipelineRunner) is the only entity permitted to hold instances of and directly call methods on multiple, distinct roles (e.g., Scout, Planner).
+
+    Role Isolation: Roles are defined as classes that encapsulate a specific step of a workflow. A Role is forbidden from importing, instantiating, or directly calling another sibling Role. All data must be passed to it by the Orchestrator.
 
 Final Compliance Check:
 

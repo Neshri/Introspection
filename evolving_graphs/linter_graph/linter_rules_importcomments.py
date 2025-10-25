@@ -3,10 +3,17 @@
 import os  # filesystem operations
 import ast  # abstract syntax tree for parsing Python code
 
-from .linter_utils_core import (  # To check for inline and following comments on imports.
-    has_inline_comment,
-    has_following_comment,
-)
+try:
+    from .linter_utils_core import (  # To check for inline and following comments on imports.
+        has_inline_comment,
+        has_following_comment,
+    )
+except ImportError:
+    # Fallback for standalone execution
+    from linter_utils_core import (  # To check for inline and following comments on imports.
+        has_inline_comment,
+        has_following_comment,
+    )
 
 
 def check_import_comments(target_files=None):
@@ -15,9 +22,9 @@ def check_import_comments(target_files=None):
 
     # Determine which files to check
     if target_files is None:
-        # Default behavior: scan all .py files in agent_tree
+        # Default behavior: scan all .py files in evolving_graphs
         files_to_check = []
-        agenttree_dir = 'agent_tree'
+        agenttree_dir = 'evolving_graphs'
         for root, dirs, files in os.walk(agenttree_dir):
             for file in files:
                 if file.endswith('.py'):

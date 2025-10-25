@@ -10,27 +10,23 @@ import os  # filesystem operations
 import sys  # system-specific parameters and functions
 import argparse  # command-line argument parsing
 
-# Handle imports for both package and standalone execution
-try:
-    from .linter_rules_recovery import check_architectural_recovery
-    from .linter_rules_importcomments import check_import_comments
-    from .linter_rules_importcompliance import check_imports_compliance
-    from .linter_rules_duplication import check_duplication
-    from .linter_rules_filesize import check_file_sizes
-    from .linter_rules_compliance import check_final_compliance
-except ImportError:
-    # Fallback for standalone execution
-    import sys
-    import os
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    if current_dir not in sys.path:
-        sys.path.insert(0, current_dir)
-    from linter_rules_recovery import check_architectural_recovery  # To diagnose and resolve architectural contradictions.
-    from linter_rules_importcomments import check_import_comments  # To validate explanatory comments on imports.
-    from linter_rules_importcompliance import check_imports_compliance  # To ensure imports comply with flat architecture rules.
-    from linter_rules_duplication import check_duplication  # To detect potential code duplication.
-    from linter_rules_filesize import check_file_sizes  # To enforce file size limits.
-    from linter_rules_compliance import check_final_compliance  # To perform final compliance check on modified files.
+# Handle imports for package execution
+import sys
+import os
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+from linter_rules_recovery import check_architectural_recovery  # To diagnose and resolve architectural contradictions.
+from linter_rules_importcomments import check_import_comments  # To validate explanatory comments on imports.
+from linter_rules_importcompliance import check_imports_compliance  # To ensure imports comply with flat architecture rules.
+from linter_rules_duplication import check_duplication  # To detect potential code duplication.
+from linter_rules_filesize import check_file_sizes  # To enforce file size limits.
+from linter_rules_compliance import check_final_compliance  # To perform final compliance check on modified files.
+from linter_rules_initfiles import check_init_files  # To check empty __init__.py files.
+from linter_rules_entrypoints import check_entry_points  # To check designated entry points.
+from linter_rules_orchestrator import check_orchestrator_pattern  # To check orchestrator pattern and linear data flow.
+from linter_rules_crossgraph import check_cross_graph_imports  # To check cross-graph imports and relative paths.
 
 
 def find_project_root():
@@ -193,28 +189,84 @@ def main():
     print()
 
     # Check file sizes
-    print("4. Checking file sizes...")
+    print("4. Checking file sizes (token limits)...")
     violations = check_file_sizes(target_files)
     if violations:
         violations_found = True
         print("File size violations:")
         for filepath, count, status in violations:
             if isinstance(count, int):
-                print(f"{filepath}: {count} lines {status}")
+                print(f"{filepath}: {count} tokens {status}")
             else:
                 print(f"{filepath}: {count} {status}")
     else:
-        print("All files are within size limits.")
+        print("All files are within token limits.")
     print()
 
-    # Analyze lines count - REMOVED: Not applicable in flat architecture
+    # Check __init__.py files
+    print("5. Checking __init__.py files...")
+    violations = check_init_files(target_files)
+    if violations:
+        violations_found = True
+        print("Empty __init__.py violations found:")
+        for file, content, reason in violations:
+            print(f"File: {file}")
+            print(f"Content: {content}")
+            print(f"Reason: {reason}")
+            print()
+    else:
+        print("All __init__.py files are empty.")
+    print()
 
-    # Analyze lines count - REMOVED: Not applicable in flat architecture
+    # Check designated entry points
+    print("6. Checking designated entry points...")
+    violations = check_entry_points(target_files)
+    if violations:
+        violations_found = True
+        print("Entry point violations found:")
+        for file, entry_point, reason in violations:
+            print(f"File: {file}")
+            print(f"Entry point: {entry_point}")
+            print(f"Reason: {reason}")
+            print()
+    else:
+        print("All graphs have designated entry points.")
+    print()
+
+    # Check orchestrator pattern and linear data flow
+    print("7. Checking orchestrator pattern and linear data flow...")
+    violations = check_orchestrator_pattern(target_files)
+    if violations:
+        violations_found = True
+        print("Orchestrator/linear data flow violations found:")
+        for file, pattern, reason in violations:
+            print(f"File: {file}")
+            print(f"Pattern: {pattern}")
+            print(f"Reason: {reason}")
+            print()
+    else:
+        print("Orchestrator pattern and linear data flow are properly implemented.")
+    print()
+
+    # Check cross-graph imports and relative paths
+    print("8. Checking cross-graph imports and relative paths...")
+    violations = check_cross_graph_imports(target_files)
+    if violations:
+        violations_found = True
+        print("Cross-graph/relative path violations found:")
+        for file, imp, reason in violations:
+            print(f"File: {file}")
+            print(f"Import: {imp}")
+            print(f"Reason: {reason}")
+            print()
+    else:
+        print("No cross-graph imports or upward traversals found.")
+    print()
 
     print("\nAll checks completed.")
 
     # Final Compliance Check - verify changed files
-    print("\n6. Performing Final Compliance Check on all files...")
+    print("\n9. Performing Final Compliance Check on all files...")
     final_violations = check_final_compliance(target_files)
     if final_violations:
         violations_found = True

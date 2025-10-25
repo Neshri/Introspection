@@ -3,7 +3,11 @@
 import os  # filesystem operations
 from collections import defaultdict  # default dictionary factory
 
-from .linter_utils_core import is_boilerplate, is_import_or_comment  # To identify boilerplate and import/comment lines.
+try:
+    from .linter_utils_core import is_boilerplate, is_import_or_comment  # To identify boilerplate and import/comment lines.
+except ImportError:
+    # Fallback for standalone execution
+    from linter_utils_core import is_boilerplate, is_import_or_comment  # To identify boilerplate and import/comment lines.
 
 
 def check_duplication(target_files=None):
@@ -13,9 +17,9 @@ def check_duplication(target_files=None):
 
     # Determine which files to check
     if target_files is None:
-        # Default behavior: scan all .py files in agent_tree
+        # Default behavior: scan all .py files in evolving_graphs
         files_to_check = []
-        agenttree_dir = 'agent_tree'
+        agenttree_dir = 'evolving_graphs'
         for root, dirs, files in os.walk(agenttree_dir):
             for file in files:
                 if file.endswith('.py'):
