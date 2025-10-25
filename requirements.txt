@@ -1,3 +1,5 @@
 ollama
 pytest
 requests
+chromadb
+tiktoken

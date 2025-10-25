@@ -1,51 +1,51 @@
-As an expert software architect, you are creating an AI-friendly, 'crawlable' codebase. Your goal is to ensure an AI agent can navigate the code efficiently. Adhere strictly to these rules:
+As an expert software architect, your objective is to build a stable, scalable, and AI-friendly codebase (Version 1). The architecture must be highly explicit and easily "crawlable" so that an AI can eventually navigate and modify it safely and efficiently.
 
 Rule 0: System Integrity
 
     A. Context Propagation: Pass this full ruleset to any sub-agent.
 
-    B. Architectural Recovery: Diagnose and resolve architectural contradictions before applying standard rules.
+    B. Architectural Recovery: Before writing code, resolve architectural contradictions.
 
-(Standard Architectural Rules)
+Architectural Rules
 
-Core Principles:
+Core Structure & The Genome:
 
-    Component Architecture: Project modules must reside in a direct subdirectory of the root. No modules are allowed in the root directory itself, and no nested subdirectories are allowed.
+    The Genome: The /evolving_graphs/ directory is a self-contained "Genome."
 
-    Directory Cohesion: Every subdirectory represents a component and must have a single, clear responsibility. A directory with over 25 modules suggests a refactor is needed.
+    Component Architecture: A Genome consists of "graphs" (direct subdirectories). All modules must belong to a specific graph.
 
-    Semantic Naming: Module filenames must clearly describe their responsibility using a domain_responsibility.py pattern (e.g., agent_core.py, linter_rules_compliance.py).
+    Semantic Naming: Module filenames must be domain_responsibility.py.
 
-    Designated Entry Points: Any executable function of the project (e.g., the main application, a test suite) must have an entry point module inside its component subdirectory, named [context]_main.py.
+    Designated Entry Points: Each graph must have a [context]_main.py entry point.
 
-    File Size: No file shall exceed 300 non-empty, non-comment lines.
+    Module Token Limit: Modules must not exceed 3,000 tokens (tiktoken).
 
-    DRY (Don't Repeat Yourself): Duplicated blocks of 5+ contiguous lines of executable logic are forbidden.
+    DRY (Don't Repeat Yourself): Extract duplicated 5+ line blocks into _utils.py modules.
 
-        Extract the duplicated logic into a new, reusable function or class.
+Recursive Evolution & Execution:
 
-        Place this logic into a new module named [component]_utils_core.py or a similarly descriptive name within the most relevant component's subdirectory.
+    Recursive Evolution Protocol: To create a child MCTS node, a complete copy of the parent Genome must be placed in a candidates/[candidate_id]/ subdirectory at the parent's root.
 
-        Replace the original duplicated blocks with an import and a call to the new utility module.
+        Crucial Exclusion: The copy operation must explicitly ignore the parent's candidates/ directory. This ensures the new child is a clean clone of the parent's current logic, not its entire evolutionary history.
 
-Import and API Rules:
+    Strictly Relative Paths: All file access and execution paths must be relative. A Genome must not traverse upwards (../).
 
-    Consumption Logic: Imports must follow these strict locality rules using only relative paths. Absolute imports are forbidden.
+    Inter-Component Execution: Graphs are executed as subprocesses via their entry points. Direct cross-graph imports are forbidden.
 
-        Within the same directory (intra-component): Use simple relative imports (from .sibling_module import X).
+Imports & API:
 
-        Between two subdirectories (inter-component): Use relative imports that traverse to the parent (from ..directory_name.module_name import X).
+    Strictly Relative Imports: All Python imports within a Genome must be relative.
 
-        From a subdirectory into the root: Forbidden, as no modules exist in the root.
+    Mandatory Import Signposts: Every relative import requires a same-line comment explaining its purpose.
 
-        Exception: Entry point modules (named [context]_main.py) may use absolute imports for dependencies within the same component, provided they include mandatory comments.
+    Empty __init__.py: All __init__.py files must be empty.
 
-    Mandatory Import Signposts: Every intra-project import must have a same-line comment explaining its purpose (the "why"). The comment, excluding the preceding #, must not exceed 60 characters.
+State and Data Management:
 
-        Correct: from .agent_planner import Planner # To generate the next sequence of actions.
+    Bounded Context Object: Use Context objects to pass operational state down the call stack.
 
-    No Public API (_init_.py): All __init__.py files must be empty. This enforces that every module is imported directly via its full path, making dependencies explicit.
+    Memory Abstraction Layer: Access external memory (ChromaDB) only through a dedicated memory_interface.py module, provided via the Context object.
 
 Final Compliance Check:
 
-    Before completing a task, re-read and verify all changed files against these rules.
+    Before completing a task, verify all changes against these rules.

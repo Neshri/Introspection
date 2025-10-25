@@ -2,6 +2,7 @@ import json  # JSON handling for structured plan output
 import ollama  # LLM interface for generating plans based on goals and context
 import re # Make sure to import the regular expression module at the top of the file
 import os  # File system operations for path handling
+import tiktoken  # Token estimation for better context management
 from .intelligence_llm_service import chat_llm  # Standardized LLM service
 from .agent_config import config  # Configuration settings for model selection and prompt templates
 from .utils_collect_modules import collect_modules  # Utility to collect all Python modules in project
@@ -14,11 +15,42 @@ class Planner:
     insights from batches of files and then synthesizing them into a final, coherent plan.
     Additionally, it validates and corrects file references in generated plans to ensure
     they match the actual project structure and follow architectural rules.
+
+    The batching algorithm uses token-based sizing to respect LLM context limits,
+    with intelligent splitting that considers file content density and complexity.
     """
+
+    def __init__(self):
+        """Initialize the Planner with token estimation capabilities."""
+        # Use GPT-3.5-turbo tokenizer as fallback for Gemma3 (similar English tokenization)
+        try:
+            self.tokenizer = tiktoken.get_encoding("cl100k_base")  # GPT-3.5/4 tokenizer
+        except Exception:
+            # Fallback to basic character-based estimation if tiktoken fails
+            self.tokenizer = None
+            print("WARNING: tiktoken not available, falling back to character-based estimation")
+
+    def _estimate_tokens(self, text: str) -> int:
+        """
+        Estimate the number of tokens in text using tiktoken.
+        Falls back to character-based estimation if tiktoken is unavailable.
+
+        Args:
+            text (str): The text to estimate tokens for
+
+        Returns:
+            int: Estimated token count
+        """
+        if self.tokenizer:
+            return len(self.tokenizer.encode(text))
+        else:
+            # Rough fallback: ~4 characters per token for English text
+            return len(text) // 4
 
     def _generate_insights_from_batch(self, main_goal: str, batch_context: str) -> str:
         """(Map Phase) Generates insights for a single batch of files."""
-        print(f"DEBUG: Generating insights for a batch of size {len(batch_context)}")
+        token_count = self._estimate_tokens(batch_context)
+        print(f"DEBUG: Generating insights for batch of ~{token_count} tokens (size {len(batch_context)} chars)")
         prompt = config.PLANNER_INSIGHT_PROMPT_TEMPLATE.format(
             goal=main_goal,
             backpack_context=batch_context
@@ -80,28 +112,40 @@ class Planner:
             print("DEBUG: Backpack is empty. Creating a simple plan based on goal alone.")
             return self._synthesize_plan_from_insights(main_goal, ["No file context was provided."])
 
-        # Batch files to respect the context limit
+        # Batch files using token-based sizing to respect context limits
         batches = []
         current_batch_content = ""
-        current_batch_size = 0
+        current_batch_tokens = 0
+
+        # Reserve tokens for prompt template overhead (goal + formatting)
+        prompt_overhead_tokens = self._estimate_tokens(
+            config.PLANNER_INSIGHT_PROMPT_TEMPLATE.format(goal=main_goal, backpack_context="")
+        )
+        available_tokens = config.CONTEXT_LIMIT - prompt_overhead_tokens
+
+        print(f"DEBUG: Available tokens per batch: {available_tokens} (reserved {prompt_overhead_tokens} for prompt)")
 
         for item in backpack:
             item_content = f"File: {item['file_path']}\nJustification: {item['justification']}\nContent:\n{item['full_code']}\n\n"
-            item_size = len(item_content)
+            item_tokens = self._estimate_tokens(item_content)
 
-            if current_batch_size + item_size > config.CONTEXT_LIMIT:
+            # If adding this item would exceed the limit, start a new batch
+            if current_batch_tokens + item_tokens > available_tokens:
                 if current_batch_content:
                     batches.append(current_batch_content)
+                    print(f"DEBUG: Created batch with {current_batch_tokens} tokens")
                 current_batch_content = item_content
-                current_batch_size = item_size
+                current_batch_tokens = item_tokens
             else:
                 current_batch_content += item_content
-                current_batch_size += item_size
-        
+                current_batch_tokens += item_tokens
+
+        # Add the final batch if it has content
         if current_batch_content:
             batches.append(current_batch_content)
+            print(f"DEBUG: Created final batch with {current_batch_tokens} tokens")
 
-        print(f"DEBUG: Split {len(backpack)} files into {len(batches)} batches for processing.")
+        print(f"DEBUG: Split {len(backpack)} files into {len(batches)} batches (token-based sizing)")
 
         # --- MAP PHASE ---
         # Generate insights from each batch of files

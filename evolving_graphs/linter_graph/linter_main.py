@@ -8,6 +8,7 @@ Supports optional single-file mode when a _main.py file is specified.
 
 import os  # filesystem operations
 import sys  # system-specific parameters and functions
+import argparse  # command-line argument parsing
 
 # Handle imports for both package and standalone execution
 try:
@@ -32,50 +33,106 @@ except ImportError:
     from linter_rules_compliance import check_final_compliance  # To perform final compliance check on modified files.
 
 
-def validate_file_argument(file_path):
-    """Validate that the provided file path is a valid Python file."""
+def find_project_root():
+    """Find the project root directory containing the evolving_graphs folder."""
+    current_dir = os.getcwd()
+    while current_dir != os.path.dirname(current_dir):
+        if os.path.exists(os.path.join(current_dir, 'evolving_graphs')):
+            return current_dir
+        current_dir = os.path.dirname(current_dir)
+    # Fallback to current directory if not found
+    return os.getcwd()
+
+
+def resolve_path(path_str):
+    """Resolve a path relative to the project root if relative, or absolute if already absolute."""
+    if os.path.isabs(path_str):
+        return path_str
+    project_root = find_project_root()
+    return os.path.abspath(os.path.join(project_root, path_str))
+
+
+def validate_file(file_path):
+    """Validate that the provided file path exists and is a Python file."""
     if not file_path.endswith('.py'):
-        print(f"Error: File must end with '.py'. Provided: {file_path}")
-        sys.exit(1)
-
+        raise ValueError(f"File must end with '.py'. Provided: {file_path}")
     if not os.path.isfile(file_path):
-        print(f"Error: File does not exist: {file_path}")
-        sys.exit(1)
-
+        raise ValueError(f"File does not exist: {file_path}")
     return file_path
 
 
-def get_target_files(file_path=None):
-    """Get the list of files to check. If file_path is provided, return just that file; otherwise, return all Python files in agent_tree."""
-    if file_path:
-        return [os.path.abspath(file_path)]
+def validate_directories(dirs):
+    """Validate that provided directory paths exist."""
+    for dir_path in dirs:
+        if not os.path.isdir(dir_path):
+            raise ValueError(f"Directory does not exist: {dir_path}")
+    return dirs
 
-    # Default behavior: scan all .py files in agent_tree
+
+def collect_target_files(folders=None, file_path=None):
+    """Collect target files to lint based on folders or single file."""
     target_files = []
-    for root, dirs, files in os.walk('agent_tree'):
-        for file in files:
-            if file.endswith('.py'):
-                target_files.append(os.path.abspath(os.path.join(root, file)))
+    if file_path:
+        target_files = [resolve_path(file_path)]
+    elif folders:
+        resolved_folders = [resolve_path(f) for f in folders]
+        for folder in resolved_folders:
+            for root, dirs, files in os.walk(folder):
+                for file in files:
+                    if file.endswith('.py'):
+                        target_files.append(os.path.abspath(os.path.join(root, file)))
+    else:
+        # Default: scan evolving_graphs
+        for root, dirs, files in os.walk(resolve_path('evolving_graphs')):
+            for file in files:
+                if file.endswith('.py'):
+                    target_files.append(os.path.abspath(os.path.join(root, file)))
     return target_files
+
+
+def parse_arguments():
+    """Parse command-line arguments using argparse."""
+    parser = argparse.ArgumentParser(
+        description="Combined script to check all coding rules for flat architecture.",
+        epilog="Examples:\n"
+               "  %(prog)s\n"
+               "  %(prog)s --file evolving_graphs/linter_graph/linter_main.py\n"
+               "  %(prog)s --folders evolving_graphs/agent_graph evolving_graphs/linter_graph"
+    )
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        '--file', '-f',
+        type=str,
+        help='Specify a single Python file to lint'
+    )
+    group.add_argument(
+        '--folders', '-d',
+        nargs='+',
+        help='Specify one or more directories to scan for Python files'
+    )
+    return parser.parse_args()
 
 
 def main():
     """Main function to run all rule checks."""
-    # Parse command-line arguments
-    target_file = None
-    if len(sys.argv) > 1:
-        if len(sys.argv) > 2:
-            print("Usage: python -m linter.linter_main [optional_file_path]")
-            print("If file_path is provided, it must be a .py file.")
-            sys.exit(1)
-        target_file = validate_file_argument(sys.argv[1])
+    args = parse_arguments()
 
-    target_files = get_target_files(target_file)
+    try:
+        if args.file:
+            validate_file(resolve_path(args.file))
+            target_files = collect_target_files(file_path=args.file)
+            print(f"Running rule checks on single file: {resolve_path(args.file)}\n")
+        elif args.folders:
+            validate_directories([resolve_path(f) for f in args.folders])
+            target_files = collect_target_files(folders=args.folders)
+            print(f"Running rule checks on specified folders: {', '.join(args.folders)}\n")
+        else:
+            target_files = collect_target_files()
+            print("Running all rule checks on entire project...\n")
 
-    if target_file:
-        print(f"Running rule checks on single file: {target_file}\n")
-    else:
-        print("Running all rule checks on entire project...\n")
+    except ValueError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
 
     violations_found = False
 

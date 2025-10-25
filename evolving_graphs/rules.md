@@ -1,50 +1,44 @@
-As an expert software architect, you are creating an AI-friendly, 'crawlable' codebase. Your goal is to ensure an AI agent can navigate the code efficiently. Adhere strictly to these rules:
+As an expert software architect, your objective is to build a stable, scalable, and AI-friendly codebase (Version 1). The architecture must be highly explicit and easily "crawlable" so that an AI can eventually navigate and modify it safely and efficiently.
 
 Rule 0: System Integrity
 
-    A. Context Propagation: Pass this full ruleset to any sub-agent.
+    A. Context Propagation: Pass this full ruleset to any sub-agent assisting in development to ensure architectural consistency.
 
-    B. Architectural Recovery: Diagnose and resolve architectural contradictions before applying standard rules.
+    B. Architectural Recovery: Before writing code, diagnose and resolve any contradictions in the existing architecture against these rules.
 
-(Standard Architectural Rules)
+Architectural Rules
 
-Core Principles:
+Core Structure:
 
-    Component Architecture: Project modules must reside in a direct subdirectory of the root. No modules are allowed in the root directory itself, and no nested subdirectories are allowed.
+    Component Architecture: All primary components, hereafter referred to as "graphs" (e.g., agent_graph, linter_graph), must reside as direct subdirectories within the /evolving_graphs/ directory. No Python modules are permitted in the project root or directly within /evolving_graphs/. All modules must belong to a specific graph.
 
-    Directory Cohesion: Every subdirectory represents a component and must have a single, clear responsibility. A directory with over 25 modules suggests a refactor is needed.
+    Semantic Naming: Module filenames must follow the domain_responsibility.py pattern (e.g., agent_core.py, memory_interface.py).
 
-    Semantic Naming: Module filenames must clearly describe their responsibility using a domain_responsibility.py pattern (e.g., agent_core.py, linter_rules_compliance.py).
+    Designated Entry Points: Each component subdirectory must have a single executable entry point named [context]_main.py.
 
-    Designated Entry Points: Any executable function of the project (e.g., the main application, a test suite) must have an entry point module inside its component subdirectory, named [context]_main.py.
+    File Size: Modules shall not exceed 300 non-empty, non-comment lines to enforce modularity.
 
-    File Size: No file shall exceed 300 non-empty, non-comment lines.
+    DRY (Don't Repeat Yourself): Duplicated blocks of 5+ lines are forbidden. Extract them into a function within a relevant [component]_utils.py module.
 
-    DRY (Don't Repeat Yourself): Duplicated blocks of 5+ contiguous lines of executable logic are forbidden.
+Imports & API:
 
-        Extract the duplicated logic into a new, reusable function or class.
+    Strictly Relative Imports: All intra-project imports must be relative. This ensures components are self-contained and prevents unintended coupling. Absolute imports are forbidden.
 
-        Place this logic into a new module named [component]_utils_core.py or a similarly descriptive name within the most relevant component's subdirectory.
+        Intra-Component: from .sibling_module import X
 
-        Replace the original duplicated blocks with an import and a call to the new utility module.
+        Inter-Component Execution: A component may only execute another component as a subprocess via its entry point, never through a direct import. This creates a stability firewall.
 
-Import and API Rules:
+    Mandatory Import Signposts: Every relative import must have a same-line comment explaining its purpose.
 
-    Consumption Logic: Imports must follow these strict locality rules using only relative paths. Absolute imports are forbidden.
+        from .agent_planner import Planner # To generate the next sequence of actions.
 
-        Within the same directory (intra-component): Use simple relative imports (from .sibling_module import X).
+    Empty __init__.py: All __init__.py files must be empty to make every module dependency explicit in its import path.
 
-        Between two subdirectories (inter-component): Use relative imports that traverse to the parent (from ..directory_name.module_name import X).
+State and Data Management:
 
-        From a subdirectory into the root: Forbidden, as no modules exist in the root.
+    Bounded Context Object: To prevent passing excessive arguments, aggregate operational state and configuration into Context objects (e.g., AgentContext). These objects are created in the main entry point and passed down the call stack, making data dependencies explicit in function signatures.
 
-        Exception: Entry point modules (named [context]_main.py) may use absolute imports for dependencies within the same component, provided they include mandatory comments.
-
-    Mandatory Import Signposts: Every intra-project import must have a same-line comment explaining its purpose (the "why"). The comment, excluding the preceding #, must not exceed 60 characters.
-
-        Correct: from .agent_planner import Planner # To generate the next sequence of actions.
-
-    No Public API (_init_.py): All __init__.py files must be empty. This enforces that every module is imported directly via its full path, making dependencies explicit.
+    Memory Abstraction Layer: All interactions with the external memory store (e.g., ChromaDB) must be handled by a single, dedicated memory_interface.py module. This module is the sole gateway for memory operations and should be accessed via the Context object.
 
 Final Compliance Check:
 

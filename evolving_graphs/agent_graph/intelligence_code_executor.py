@@ -16,6 +16,54 @@ from .agent_backpack_formatter import format_backpack_context  # Context formatt
 from .intelligence_llm_service import chat_llm  # Standardized LLM service
 from .agent_config import config  # Configuration for prompts and settings
 
+# Configuration constants for iterative backpack processing
+BACKPACK_CHUNK_SIZE_LIMIT = 4000  # Maximum tokens/chars per chunk
+MAX_ITERATION_LIMIT = 5  # Maximum number of iterative LLM calls
+
+def chunk_backpack_by_size(backpack, chunk_size_limit=BACKPACK_CHUNK_SIZE_LIMIT):
+    """
+    Splits the backpack into smaller chunks based on total code size.
+
+    Args:
+        backpack: List of dict items with 'file_path', 'justification', and 'full_code' keys
+        chunk_size_limit: Maximum size (chars/tokens) per chunk
+
+    Returns:
+        list: List of backpack chunks, each under the size limit
+    """
+    if not backpack:
+        return []
+
+    chunks = []
+    current_chunk = []
+    current_size = 0
+
+    for item in backpack:
+        item_size = len(item.get('full_code', '')) + len(item.get('justification', '')) + len(item.get('file_path', ''))
+
+        # If adding this item would exceed the limit and we have items in current chunk, start new chunk
+        if current_size + item_size > chunk_size_limit and current_chunk:
+            chunks.append(current_chunk)
+            current_chunk = []
+            current_size = 0
+
+        # If a single item exceeds the limit, include it in its own chunk (force it)
+        if item_size > chunk_size_limit:
+            if current_chunk:
+                chunks.append(current_chunk)
+            chunks.append([item])
+            current_chunk = []
+            current_size = 0
+        else:
+            current_chunk.append(item)
+            current_size += item_size
+
+    # Add the last chunk if it has items
+    if current_chunk:
+        chunks.append(current_chunk)
+
+    return chunks
+
 def load_architectural_rules():
     """Load architectural rules from rules.md file for dynamic embedding."""
     try:
@@ -26,7 +74,18 @@ def load_architectural_rules():
 
 def get_executor_response(goal, document, backpack=None, plan=None, working_dir=None):
     """Generates the next code improvement using the Executor prompt with self-improvement."""
-    # Format backpack context
+    # Check if backpack needs chunking
+    if backpack and len(backpack) > 1:
+        chunks = chunk_backpack_by_size(backpack)
+        print(f"DEBUG: Backpack has {len(backpack)} items, chunked into {len(chunks)} chunks")
+        for i, chunk in enumerate(chunks):
+            chunk_size = sum(len(item.get('full_code', '')) + len(item.get('justification', '')) + len(item.get('file_path', '')) for item in chunk)
+            print(f"DEBUG: Chunk {i+1} has {len(chunk)} items, total size: {chunk_size}")
+        if len(chunks) > 1:
+            print("DEBUG: Triggering iterative processing due to multiple chunks")
+            return get_executor_response_iterative(goal, document, chunks, plan, working_dir)
+
+    # Format backpack context (standard case)
     backpack_context = format_backpack_context(backpack)
 
     # Load architectural rules for context
@@ -35,41 +94,8 @@ def get_executor_response(goal, document, backpack=None, plan=None, working_dir=
     # Get base prompt and enhance with architectural context
     prompt = config.EXECUTOR_PROMPT_TEMPLATE.format(goal=goal, plan=plan, document=document, backpack_context=backpack_context)
 
-    # Embed architectural rules context
-    prompt += f"\n\n**Architectural Rules (MANDATORY COMPLIANCE):**\n{architectural_rules}\n"
-
-    # Add file reference guidance
-    prompt += f"""
-**File Naming and Reference Guidelines:**
-- Use correct file names: e.g., 'agent_core.py' for Agent class, 'intelligence_plan_generator.py' for Planner, etc.
-- Follow domain_responsibility.py pattern: e.g., 'pipeline_code_verifier.py', 'agent_backpack_formatter.py'
-- Entry points: Use [context]_main.py format (e.g., 'agent_graph_main.py')
-- Utility modules: Use [component]_utils_[purpose].py (e.g., 'utils_state_persistence.py')
-
-**Import Guidelines:**
-- Use ONLY relative imports: from .module_name import ClassName # Brief purpose comment
-- Intra-component: from .sibling_module import X
-- Inter-component: from ..directory_name.module_name import X
-- Examples: from .agent_config import config # Configuration settings
-- NO absolute imports except in entry point modules with mandatory comments
-- NO __init__.py imports (all imports must be direct and explicit)
-
-**Code Structure Requirements:**
-- Files ≤ 300 non-empty, non-comment lines
-- No duplicated logic blocks (5+ contiguous lines)
-- Extract duplicates to utility modules like 'agent_graph_utils_core.py'
-- Use semantic naming with clear responsibilities
-
-"""
-
-    # Add plan context if provided
-    if plan:
-        plan_json = json.dumps(plan, indent=2)
-        prompt += f"\n\n**Plan Context:**\n{plan_json}\n"
-
-    # Add working directory context if provided
-    if working_dir:
-        prompt += f"\n\n**Working Directory:**\nAll code changes should be generated relative to the working directory: {working_dir}\nIf writing files, ensure they target this candidate directory for consistency.\n"
+    # Add common sections using helper function
+    prompt += _build_prompt_sections(architectural_rules, plan, working_dir)
 
     # Add clearer LLM generation instructions
     prompt += f"""
@@ -100,6 +126,109 @@ Before outputting code, mentally verify it adheres to ALL architectural rules li
         prompt += improvement_context
 
     return chat_llm(prompt)
+
+def get_executor_response_iterative(goal, document, backpack_chunks, plan=None, working_dir=None):
+    """
+    Handles iterative LLM calls when backpack is large, processing chunks sequentially.
+
+    Args:
+        goal: The main programming goal
+        document: Current code state
+        backpack_chunks: List of backpack chunks
+        plan: Optional plan context
+        working_dir: Optional working directory
+
+    Returns:
+        str: Combined code output from all iterations
+    """
+    accumulated_code = document or ""
+    total_chunks = len(backpack_chunks)
+    print(f"DEBUG: Starting iterative processing with {total_chunks} chunks")
+
+    for i, chunk in enumerate(backpack_chunks):
+        if i >= MAX_ITERATION_LIMIT:
+            print(f"DEBUG: Reached iteration limit ({MAX_ITERATION_LIMIT}), stopping")
+            break  # Safety limit on iterations
+
+        print(f"DEBUG: Processing iteration {i+1}/{total_chunks}, chunk has {len(chunk)} items")
+
+        # Format backpack context for this chunk
+        backpack_context = format_backpack_context(chunk, chunk_index=i, total_chunks=total_chunks)
+        prompt_size = len(backpack_context) + len(accumulated_code) + 1000  # Rough estimate including template
+        print(f"DEBUG: Prompt size estimate for iteration {i+1}: {prompt_size} chars")
+
+        # Load architectural rules for context
+        architectural_rules = load_architectural_rules()
+
+        # Base prompt for iterative processing
+        prompt = f"""
+You are a Code Executor. Your job is to generate or improve Python code to accomplish the programming goal.
+This is iteration {i+1} of {total_chunks} processing chunks from the project backpack.
+
+**Main Goal:** {goal}
+
+**Current Code State (from previous iterations):**
+---
+{accumulated_code}
+---
+
+**Project Files Chunk {i+1} (Backpack Context):**
+---
+{backpack_context}
+---
+"""
+
+        # Add plan context if provided
+        if plan:
+            plan_json = json.dumps(plan, indent=2)
+            prompt += f"\n\n**Plan Context:**\n{plan_json}\n"
+
+        # Add common sections using helper function
+        prompt += _build_prompt_sections(architectural_rules, None, working_dir)
+
+        # Iterative processing instructions
+        if i == 0:
+            prompt += f"""
+**First Iteration Instructions:**
+Process the first chunk of files to start building the code solution. Focus on core functionality and structure.
+Generate ONLY complete Python code as output (no explanations, no markdown, no comments outside code).
+"""
+        else:
+            prompt += f"""
+**Iteration {i+1} Instructions:**
+Build upon the previous code state. Integrate insights from this chunk of files to refine and complete the solution.
+Ensure consistency with previous iterations while incorporating new requirements from this chunk.
+Generate ONLY complete Python code as output (no explanations, no markdown, no comments outside code).
+"""
+
+        # Add self-improvement context if we have historical data
+        from .intelligence_prompt_tracker import get_best_prompt_variations  # Dynamic import to avoid circular dependency
+        best_prompts = get_best_prompt_variations(limit=3)
+        if best_prompts:
+            improvement_context = "\n\n**Self-Improvement Insights:**\nBased on previous successful code generations:\n"
+            for j, (prompt_key, data) in enumerate(best_prompts[:3]):
+                avg_score = data.get('avg_score', 0)
+                success_rate = data.get('success_count', 0) / max(1, data.get('total_attempts', 1))
+                improvement_context += f"- High-performing approach (score: {avg_score:.1f}, success: {success_rate:.1%}): Try variations that improve accuracy and efficiency.\n"
+            improvement_context += "\nUse these insights to generate better code variations."
+            prompt += improvement_context
+
+        # Get response for this chunk
+        try:
+            print(f"DEBUG: Making LLM call for iteration {i+1}")
+            response = chat_llm(prompt)
+            print(f"DEBUG: LLM call successful for iteration {i+1}, response length: {len(response)}")
+        except Exception as e:
+            print(f"DEBUG: LLM call failed for iteration {i+1}: {str(e)}")
+            # Continue with previous accumulated code on failure
+            continue
+
+        # Update accumulated code with this iteration's result
+        accumulated_code = response
+        print(f"DEBUG: Accumulated code updated, new length: {len(accumulated_code)}")
+
+    print(f"DEBUG: Iterative processing completed, final code length: {len(accumulated_code)}")
+    return accumulated_code
 
 def execute_code(code):
     """
@@ -155,3 +284,46 @@ def execute_code(code):
             pass
 
     return result
+
+# Helper function to build common prompt sections
+def _build_prompt_sections(architectural_rules, plan=None, working_dir=None):
+    """Helper function to build common prompt sections to avoid duplication."""
+    sections = []
+
+    # Architectural rules
+    sections.append(f"\n\n**Architectural Rules (MANDATORY COMPLIANCE):**\n{architectural_rules}\n")
+
+    # File reference guidance
+    sections.append("""
+**File Naming and Reference Guidelines:**
+- Use correct file names: e.g., 'agent_core.py' for Agent class, 'intelligence_plan_generator.py' for Planner, etc.
+- Follow domain_responsibility.py pattern: e.g., 'pipeline_code_verifier.py', 'agent_backpack_formatter.py'
+- Entry points: Use [context]_main.py format (e.g., 'agent_graph_main.py')
+- Utility modules: Use [component]_utils_[purpose].py (e.g., 'utils_state_persistence.py')
+
+**Import Guidelines:**
+- Use ONLY relative imports: from .module_name import ClassName # Brief purpose comment
+- Intra-component: from .sibling_module import X
+- Inter-component: from ..directory_name.module_name import X
+- Examples: from .agent_config import config # Configuration settings
+- NO absolute imports except in entry point modules with mandatory comments
+- NO __init__.py imports (all imports must be direct and explicit)
+
+**Code Structure Requirements:**
+- Files ≤ 300 non-empty, non-comment lines
+- No duplicated logic blocks (5+ contiguous lines)
+- Extract duplicates to utility modules like 'agent_graph_utils_core.py'
+- Use semantic naming with clear responsibilities
+
+""")
+
+    # Plan context
+    if plan:
+        plan_json = json.dumps(plan, indent=2)
+        sections.append(f"\n\n**Plan Context:**\n{plan_json}\n")
+
+    # Working directory context
+    if working_dir:
+        sections.append(f"\n\n**Working Directory:**\nAll code changes should be generated relative to the working directory: {working_dir}\nIf writing files, ensure they target this candidate directory for consistency.\n")
+
+    return "".join(sections)

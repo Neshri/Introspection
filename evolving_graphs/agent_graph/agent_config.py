@@ -7,7 +7,7 @@
 class Config:
     MODEL = 'gemma3:4b-it-qat'
     # Context limit for a single request to avoid overloading the LLM.
-    CONTEXT_LIMIT = 8192
+    CONTEXT_LIMIT = 2048
 
     INITIAL_GOAL = "Improve the self-improvement system by adding logging for when a prompt fails."
     MCTS_ITERATIONS_PER_STEP = 10
@@ -17,6 +17,16 @@ class Config:
     # Self-improvement tracking
     PROMPT_PERFORMANCE_LOG = "prompt_performance.json"
     IMPROVEMENT_HISTORY = "improvement_history.txt"
+
+    # Scout configuration
+    MAX_SCOUT_DEPTH = 5
+    MAX_SCOUT_NODES = 50
+    RELEVANCE_THRESHOLD = 15
+
+    # Keyword matching configuration
+    ENABLE_SYNONYM_EXPANSION = True
+    ENABLE_CASE_VARIATIONS = True
+    ENABLE_CONTEXT_PATTERN_MATCHING = True
 
     # --- Planner Configuration (Hierarchical Map-Reduce) ---
     # (Map Phase) Prompt for generating insights from a batch of files.
