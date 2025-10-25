@@ -40,11 +40,11 @@ Imports & API:
 
     Empty __init__.py: All __init__.py files must be empty.
 
-State and Data Management:
+State & Pipeline Integrity:
 
-    Bounded Context Object: Use Context objects to pass operational state down the call stack.
+    Orchestrator Pattern: A single orchestrator class (e.g., PipelineRunner) must manage the operational sequence. It is responsible for initializing all roles (Scout, Planner, etc.) and holding the primary state (main_goal, database connections).
 
-    Memory Abstraction Layer: Access external memory (ChromaDB) only through a dedicated memory_interface.py module, provided via the Context object.
+    Linear Data Flow: The orchestrator must explicitly pass data between roles, with the output of one role becoming the input for the next (e.g., plan = self.planner.create_plan(..., backpack)). Roles are forbidden from directly accessing the state of other sibling roles; all communication must be managed by the orchestrator.
 
 Final Compliance Check:
 

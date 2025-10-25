@@ -2,44 +2,50 @@ As an expert software architect, your objective is to build a stable, scalable, 
 
 Rule 0: System Integrity
 
-    A. Context Propagation: Pass this full ruleset to any sub-agent assisting in development to ensure architectural consistency.
+    A. Context Propagation: Pass this full ruleset to any sub-agent.
 
-    B. Architectural Recovery: Before writing code, diagnose and resolve any contradictions in the existing architecture against these rules.
+    B. Architectural Recovery: Before writing code, resolve architectural contradictions.
 
 Architectural Rules
 
-Core Structure:
+Core Structure & The Genome:
 
-    Component Architecture: All primary components, hereafter referred to as "graphs" (e.g., agent_graph, linter_graph), must reside as direct subdirectories within the /evolving_graphs/ directory. No Python modules are permitted in the project root or directly within /evolving_graphs/. All modules must belong to a specific graph.
+    The Genome: The /evolving_graphs/ directory is a self-contained "Genome."
 
-    Semantic Naming: Module filenames must follow the domain_responsibility.py pattern (e.g., agent_core.py, memory_interface.py).
+    Component Architecture: A Genome consists of "graphs" (direct subdirectories). All modules must belong to a specific graph.
 
-    Designated Entry Points: Each component subdirectory must have a single executable entry point named [context]_main.py.
+    Semantic Naming: Module filenames must be domain_responsibility.py.
 
-    File Size: Modules shall not exceed 300 non-empty, non-comment lines to enforce modularity.
+    Designated Entry Points: Each graph must have a [context]_main.py entry point.
 
-    DRY (Don't Repeat Yourself): Duplicated blocks of 5+ lines are forbidden. Extract them into a function within a relevant [component]_utils.py module.
+    Module Token Limit: Modules must not exceed 3,000 tokens (tiktoken).
+
+    DRY (Don't Repeat Yourself): Extract duplicated 5+ line blocks into _utils.py modules.
+
+Recursive Evolution & Execution:
+
+    Recursive Evolution Protocol: To create a child MCTS node, a complete copy of the parent Genome must be placed in a candidates/[candidate_id]/ subdirectory at the parent's root.
+
+        Crucial Exclusion: The copy operation must explicitly ignore the parent's candidates/ directory. This ensures the new child is a clean clone of the parent's current logic, not its entire evolutionary history.
+
+    Strictly Relative Paths: All file access and execution paths must be relative. A Genome must not traverse upwards (../).
+
+    Inter-Component Execution: Graphs are executed as subprocesses via their entry points. Direct cross-graph imports are forbidden.
 
 Imports & API:
 
-    Strictly Relative Imports: All intra-project imports must be relative. This ensures components are self-contained and prevents unintended coupling. Absolute imports are forbidden.
+    Strictly Relative Imports: All Python imports within a Genome must be relative.
 
-        Intra-Component: from .sibling_module import X
+    Mandatory Import Signposts: Every relative import requires a same-line comment explaining its purpose.
 
-        Inter-Component Execution: A component may only execute another component as a subprocess via its entry point, never through a direct import. This creates a stability firewall.
+    Empty __init__.py: All __init__.py files must be empty.
 
-    Mandatory Import Signposts: Every relative import must have a same-line comment explaining its purpose.
+State & Pipeline Integrity:
 
-        from .agent_planner import Planner # To generate the next sequence of actions.
+    Orchestrator Pattern: A single orchestrator class (e.g., PipelineRunner) must manage the operational sequence. It is responsible for initializing all roles (Scout, Planner, etc.) and holding the primary state (main_goal, database connections).
 
-    Empty __init__.py: All __init__.py files must be empty to make every module dependency explicit in its import path.
-
-State and Data Management:
-
-    Bounded Context Object: To prevent passing excessive arguments, aggregate operational state and configuration into Context objects (e.g., AgentContext). These objects are created in the main entry point and passed down the call stack, making data dependencies explicit in function signatures.
-
-    Memory Abstraction Layer: All interactions with the external memory store (e.g., ChromaDB) must be handled by a single, dedicated memory_interface.py module. This module is the sole gateway for memory operations and should be accessed via the Context object.
+    Linear Data Flow: The orchestrator must explicitly pass data between roles, with the output of one role becoming the input for the next (e.g., plan = self.planner.create_plan(..., backpack)). Roles are forbidden from directly accessing the state of other sibling roles; all communication must be managed by the orchestrator.
 
 Final Compliance Check:
 
-    Before completing a task, re-read and verify all changed files against these rules.
+    Before completing a task, verify all changes against these rules.
