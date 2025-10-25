@@ -6,7 +6,6 @@ import time  # Standard library for time-related functions, used for sleep in th
 from .agent_config import config  # Configuration settings
 from .utils_state_persistence import save_document_state, load_document_on_startup  # State management utilities
 from .engine_search_node import Node  # Node class for the tree structure in search algorithms
-# from .engine import mcts # We are temporarily replacing MCTS with the pipeline
 from .intelligence_project_scout import Scout  # Intelligence components for scouting and planning
 from .intelligence_plan_generator import Planner  # Intelligence components for scouting and planning
 from .pipeline_pipeline_executor import Executor  # Executor class for generating and applying code changes
@@ -19,7 +18,7 @@ def run():
     print("--- Initializing Agent ---")
 
     loaded_goal, current_code_state = load_document_on_startup()
-    
+
     # Initialize our specialist agents
     scout = Scout()
     planner = Planner()
@@ -31,7 +30,7 @@ def run():
         while True:
             print(f"\n--- Turn {turn_number} ---")
 
-            # This is the new, linear pipeline. It replaces the single MCTS call.
+            # This is the new, linear pipeline.
 
             # 1. SCOUT PHASE: Gather context
             print("Scout is analyzing the project...")

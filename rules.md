@@ -4,7 +4,15 @@ Rule 0: System Integrity
 
     A. Context Propagation: Pass this full ruleset to any sub-agent.
 
-    B. Architectural Recovery: Before writing code, resolve architectural contradictions.
+    B. Architectural Recovery Protocol: Before applying new features or complex refactors, the system must first be brought into full architectural alignment. This is a mandatory, prioritized process:
+
+        Prune Unreachable Code: First, identify and delete any deprecated or unreachable modules. A module is considered deprecated if it is not imported and used by an active Orchestrator, a designated entry point, or another referenced module.
+
+        Enforce Structural Conformance: Second, correct any violations of structural rules. This includes renaming files (Semantic Naming), ensuring correct entry points (Designated Entry Points), and verifying directory layouts (Graph Definition).
+
+        Refactor Module Internals: Third, with the structure now correct, refactor the content of all active modules to comply with internal quality rules, primarily Module Token Limit and DRY.
+
+        Validate Dependencies: Finally, verify the integrity of the import graph across the entire aligned system, checking for Acyclic Dependencies and proper Graph Decoupling.
 
 Architectural Rules
 
@@ -24,11 +32,13 @@ Core Structure & The Genome:
 
 Recursive Evolution & Execution:
 
-    Recursive Evolution Protocol: To create a child MCTS node, a complete copy of the parent Genome must be placed in a candidates/[candidate_id]/ subdirectory at the parent's root.
+    Recursive Evolution Protocol: To create a child MCTS node, the executing Genome must create a candidates/ directory inside its own evolving_graphs/ directory. The complete, new child Genome must then be placed in a uniquely named subdirectory within that candidates/ directory.
 
-        Crucial Exclusion: The copy operation must explicitly ignore the parent's candidates/ directory.
+        Example Path: If the parent is at .../parent/evolving_graphs/, the child must be created at .../parent/evolving_graphs/candidates/child_01/evolving_graphs/.
 
-    Strictly Relative Paths: All file access and execution paths must be relative. A Genome must not traverse upwards (../).
+        Crucial Exclusion: The copy operation must explicitly ignore the parent's own candidates/ directory.
+
+    Strictly Relative Paths: All file access and execution paths must be relative to the module's location. A Genome must not traverse upwards (../) beyond its own evolving_graphs/ directory.
 
     Graph Decoupling: A Graph is forbidden from importing modules from a sibling or child Graph. Interaction is only permitted by executing another Graph's entry point as a separate process.
 

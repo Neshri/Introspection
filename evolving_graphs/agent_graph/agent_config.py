@@ -10,7 +10,6 @@ class Config:
     CONTEXT_LIMIT = 2048
 
     INITIAL_GOAL = "Improve the self-improvement system by adding logging for when a prompt fails."
-    MCTS_ITERATIONS_PER_STEP = 10
 
     CURRENT_DOC_FILENAME = "agent_goal.txt"
 
