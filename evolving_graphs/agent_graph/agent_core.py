@@ -7,7 +7,6 @@ import re  # Regular expressions for goal validation patterns
 import time  # Time delays for agent execution loops
 from typing import Optional  # Type hints for optional return values
 from .agent_config import config  # To access configuration settings like INITIAL_GOAL
-from .utils_state_persistence import save_goal_only, save_document_state, load_document_on_startup, load_goal  # To persist and load agent state across sessions
 from .intelligence_project_scout import Scout  # To scout project structure and capabilities
 from .intelligence_plan_generator import Planner  # To generate plans based on current state
 from .pipeline_pipeline_executor import Executor  # To execute code changes in the pipeline
@@ -38,7 +37,6 @@ class Agent:
             return False
 
         try:
-            save_goal_only(new_goal)
             self.main_goal = new_goal
             return True
         except Exception:
@@ -98,27 +96,12 @@ class Agent:
             current_goal = config.INITIAL_GOAL
             print(f"DEBUG: Using config fallback goal: {current_goal}")
 
-        print("Loading document state...")
-        loaded_goal, current_code_state = load_document_on_startup()
-        print(f"DEBUG: Loaded goal from state: {loaded_goal}")
-        print(f"DEBUG: Current code state length: {len(current_code_state) if current_code_state else 0}")
-
-        # Use agent's goal if document state goal is None
-        if loaded_goal is None:
-            loaded_goal = current_goal
-            print(f"DEBUG: Using agent goal since loaded goal was None: {loaded_goal}")
-        else:
-            print(f"DEBUG: Using loaded goal from state: {loaded_goal}")
-
-        # Set the goal if not already set
-        if self.get_goal() is None:
-            print(f"DEBUG: Setting agent goal to: {loaded_goal}")
-            self.set_goal(loaded_goal)
-            current_goal = loaded_goal
+        loaded_goal = current_goal
+        print(f"DEBUG: Using agent goal: {loaded_goal}")
 
         # Initialize the pipeline runner
         from .pipeline_pipeline_runner import PipelineRunner  # To manage the execution pipeline with goal tracking
-        pipeline_runner = PipelineRunner(self.main_goal, current_code_state, root_dir="evolving_graphs")
+        pipeline_runner = PipelineRunner(self.main_goal, root_dir="evolving_graphs")
 
         # Agent class integration for the new run_with_agent function
         turn_number = 1

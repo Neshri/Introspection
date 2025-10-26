@@ -80,7 +80,7 @@ def _build_prompt_sections(architectural_rules, plan=None, working_dir=None):
 - Use correct file names: e.g., 'agent_core.py' for Agent class, 'intelligence_plan_generator.py' for Planner, etc.
 - Follow domain_responsibility.py pattern: e.g., 'pipeline_code_verifier.py', 'agent_backpack_formatter.py'
 - Entry points: Use [context]_main.py format (e.g., 'agent_graph_main.py')
-- Utility modules: Use [component]_utils_[purpose].py (e.g., 'utils_state_persistence.py')
+- Utility modules: Use [component]_utils_[purpose].py (e.g., 'memory_interface.py')
 
 **Import Guidelines:**
 - Use ONLY relative imports: from .module_name import ClassName # Brief purpose comment

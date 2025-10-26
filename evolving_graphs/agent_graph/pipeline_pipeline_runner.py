@@ -6,7 +6,6 @@ from .memory_interface import MemoryInterface  # External memory interface for f
 
 from .intelligence_project_scout import Scout  # Intelligence components for scouting and planning
 from .intelligence_plan_generator import Planner  # Intelligence components for scouting and planning
-from .utils_state_persistence import save_document_state as state_manager  # Utility for saving document state
 from .pipeline_pipeline_executor import Executor  # Executor class for generating and applying code changes
 from .sandbox_utils import SandboxManager  # Unified sandboxing API for directory and execution isolation
 
@@ -16,23 +15,21 @@ class PipelineRunner:
     Encapsulates the linear pipeline logic: scout → planner → executor → verifier → commit.
     """
 
-    def __init__(self, main_goal: str, initial_code_state: str, root_dir: str):
+    def __init__(self, main_goal: str, root_dir: str):
         """
-        Initialize the pipeline runner with goal, initial code state, and root directory.
+        Initialize the pipeline runner with goal and root directory.
 
         Args:
             main_goal: The main goal for the agent.
-            initial_code_state: The initial code state.
             root_dir: The root directory for the project.
         """
         self.main_goal = main_goal
-        self.current_code_state = initial_code_state
         self.root_dir = root_dir
         self.turn_counter = 0  # Track pipeline turns for feedback
         self.memory = MemoryInterface(db_path="memory_db")  # Memory interface for feedback loop
         self.scout = Scout(self.memory, os.path.join(self.root_dir, 'agent_graph'))  # Scout for gathering context with memory
         self.planner = Planner(self.memory)  # Planner for creating strategy with memory
-        self.executor = Executor(main_goal, initial_code_state)  # Executor for code changes
+        self.executor = Executor(main_goal)  # Executor for code changes
         self.sandbox_manager = SandboxManager(self.root_dir)  # Unified sandbox manager
 
     def create_candidate(self) -> None:
@@ -52,7 +49,7 @@ class PipelineRunner:
         Run one iteration of the pipeline with sandbox management and memory feedback.
 
         Returns:
-            dict: Result containing success status, updated code state, and any messages.
+            dict: Result containing success status and any messages.
         """
         try:
             # Increment turn counter
@@ -90,15 +87,12 @@ class PipelineRunner:
             # 5. COMMIT PHASE: Decide whether to accept the change
             if verification_result['success']:
                 print("Change VERIFIED. Promoting candidate to baseline.")
-                self.current_code_state = proposed_code_change  # Update the state
-                state_manager(self.current_code_state, self.main_goal)
                 self.promote_candidate()
                 # Memory feedback: +1.0 for success
                 for mem_id in used_memory_ids_this_turn:
                     self.memory.update_memory_feedback(mem_id, 1.0, self.turn_counter)
                 return {
                     'success': True,
-                    'code_state': self.current_code_state,
                     'message': 'Pipeline completed successfully and promoted.'
                 }
             else:
@@ -109,7 +103,6 @@ class PipelineRunner:
                     self.memory.update_memory_feedback(mem_id, -2.0, self.turn_counter)
                 return {
                     'success': False,
-                    'code_state': self.current_code_state,
                     'message': 'Pipeline failed verification.'
                 }
 
@@ -122,7 +115,6 @@ class PipelineRunner:
                 self.memory.update_memory_feedback(mem_id, -2.0, self.turn_counter)
             return {
                 'success': False,
-                'code_state': self.current_code_state,
                 'message': f'Pipeline error: {e}'
             }
 

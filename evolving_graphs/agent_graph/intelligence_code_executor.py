@@ -15,7 +15,7 @@ from .intelligence_backpack_utils import (chunk_backpack_by_size, load_architect
                                           MAX_ITERATION_LIMIT)  # Backpack processing utilities
 from .intelligence_execution_utils import execute_code  # Safe code execution utilities
 
-def get_executor_response(goal, document, backpack=None, plan=None, working_dir=None):
+def get_executor_response(goal, current_code=None, backpack=None, plan=None, working_dir=None):
     """Generates the next code improvement using the Executor prompt with self-improvement."""
     # Check if backpack needs chunking
     if backpack and len(backpack) > 1:
@@ -26,7 +26,7 @@ def get_executor_response(goal, document, backpack=None, plan=None, working_dir=
             print(f"DEBUG: Chunk {i+1} has {len(chunk)} items, total size: {chunk_size}")
         if len(chunks) > 1:
             print("DEBUG: Triggering iterative processing due to multiple chunks")
-            return get_executor_response_iterative(goal, document, chunks, plan, working_dir)
+            return get_executor_response_iterative(goal, current_code, chunks, plan, working_dir)
 
     # Format backpack context (standard case)
     backpack_context = format_backpack_context(backpack)
@@ -35,7 +35,7 @@ def get_executor_response(goal, document, backpack=None, plan=None, working_dir=
     architectural_rules = load_architectural_rules()
 
     # Get base prompt and enhance with architectural context
-    prompt = config.EXECUTOR_PROMPT_TEMPLATE.format(goal=goal, plan=plan, document=document, backpack_context=backpack_context)
+    prompt = config.EXECUTOR_PROMPT_TEMPLATE.format(goal=goal, plan=plan, backpack_context=backpack_context)
 
     # Add common sections using helper function
     prompt += _build_prompt_sections(architectural_rules, plan, working_dir)
@@ -70,13 +70,12 @@ Before outputting code, mentally verify it adheres to ALL architectural rules li
 
     return chat_llm(prompt)
 
-def get_executor_response_iterative(goal, document, backpack_chunks, plan=None, working_dir=None):
+def get_executor_response_iterative(goal, current_code=None, backpack_chunks=None, plan=None, working_dir=None):
     """
     Handles iterative LLM calls when backpack is large, processing chunks sequentially.
 
     Args:
         goal: The main programming goal
-        document: Current code state
         backpack_chunks: List of backpack chunks
         plan: Optional plan context
         working_dir: Optional working directory
@@ -84,7 +83,6 @@ def get_executor_response_iterative(goal, document, backpack_chunks, plan=None, 
     Returns:
         str: Combined code output from all iterations
     """
-    accumulated_code = document or ""
     total_chunks = len(backpack_chunks)
     print(f"DEBUG: Starting iterative processing with {total_chunks} chunks")
 
@@ -97,8 +95,6 @@ def get_executor_response_iterative(goal, document, backpack_chunks, plan=None, 
 
         # Format backpack context for this chunk
         backpack_context = format_backpack_context(chunk, chunk_index=i, total_chunks=total_chunks)
-        prompt_size = len(backpack_context) + len(accumulated_code) + 1000  # Rough estimate including template
-        print(f"DEBUG: Prompt size estimate for iteration {i+1}: {prompt_size} chars")
 
         # Load architectural rules for context
         architectural_rules = load_architectural_rules()
@@ -110,10 +106,6 @@ This is iteration {i+1} of {total_chunks} processing chunks from the project bac
 
 **Main Goal:** {goal}
 
-**Current Code State (from previous iterations):**
----
-{accumulated_code}
----
 
 **Project Files Chunk {i+1} (Backpack Context):**
 ---
@@ -139,8 +131,7 @@ Generate ONLY complete Python code as output (no explanations, no markdown, no c
         else:
             prompt += f"""
 **Iteration {i+1} Instructions:**
-Build upon the previous code state. Integrate insights from this chunk of files to refine and complete the solution.
-Ensure consistency with previous iterations while incorporating new requirements from this chunk.
+Integrate insights from this chunk of files to refine and complete the solution.
 Generate ONLY complete Python code as output (no explanations, no markdown, no comments outside code).
 """
 
@@ -166,7 +157,7 @@ Generate ONLY complete Python code as output (no explanations, no markdown, no c
             # Continue with previous accumulated code on failure
             continue
 
-        # Update accumulated code with this iteration's result
+        # Use response as accumulated code
         accumulated_code = response
         print(f"DEBUG: Accumulated code updated, new length: {len(accumulated_code)}")
 

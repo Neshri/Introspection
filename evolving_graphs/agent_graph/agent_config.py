@@ -11,11 +11,8 @@ class Config:
 
     INITIAL_GOAL = "Improve the self-improvement system by adding logging for when a prompt fails."
 
-    CURRENT_DOC_FILENAME = "agent_goal.txt"
-
     # Self-improvement tracking
     PROMPT_PERFORMANCE_LOG = "prompt_performance.json"
-    IMPROVEMENT_HISTORY = "improvement_history.txt"
 
     # Scout configuration
     MAX_SCOUT_DEPTH = 5
@@ -102,11 +99,6 @@ class Config:
     **Plan:**
     {plan}
 
-    **Current Code State:**
-    ---
-    {document}
-    ---
-
     **Relevant Project Files (Backpack Context):**
     ---
     {backpack_context}
@@ -121,18 +113,13 @@ class Config:
 
     **Main Goal:** {goal}
 
-    **Code So Far:**
-    ---
-    {document}
-    ---
-
     **Relevant Project Files (Backpack Context):**
     ---
     {backpack_context}
     ---
 
     **Task:**
-    Execute and test this code mentally. On a scale of 1 to 10, rate its quality and correctness:
+    Evaluate the provided code mentally. On a scale of 1 to 10, rate its quality and correctness:
     - 1: Code has syntax errors, doesn't run, or completely fails the goal.
     - 5: Code runs but has bugs, inefficiencies, or incomplete implementation.
     - 10: Perfect code that fully achieves the goal with excellent implementation.

@@ -4,7 +4,6 @@
 
 import time  # Standard library for time-related functions, used for sleep in the main loop
 from .agent_config import config  # Configuration settings
-from .utils_state_persistence import save_document_state, load_document_on_startup  # State management utilities
 from .intelligence_project_scout import Scout  # Intelligence components for scouting and planning
 from .intelligence_plan_generator import Planner  # Intelligence components for scouting and planning
 from .pipeline_pipeline_executor import Executor  # Executor class for generating and applying code changes
@@ -16,12 +15,12 @@ def run():
     """The main, continuous loop that drives the agent's behavior."""
     print("--- Initializing Agent ---")
 
-    loaded_goal, current_code_state = load_document_on_startup()
+    loaded_goal, current_code_state = None, None
 
     # Initialize our specialist agents
     scout = Scout()
     planner = Planner()
-    executor = Executor(loaded_goal, current_code_state)
+    executor = Executor(loaded_goal)
     verifier = Verifier()
 
     turn_number = 1
@@ -55,7 +54,7 @@ def run():
             if verification_result['success']:
                 print("Change VERIFIED. Committing to memory.")
                 current_code_state = proposed_code_change # Update the state
-                save_document_state(current_code_state, loaded_goal)
+                # State persistence now handled by memory_interface
             else:
                 print("Change FAILED verification. Discarding change and trying again next turn.")
                 # In the future, this failure reason would be fed back into the next loop
