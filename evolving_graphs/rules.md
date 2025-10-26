@@ -6,7 +6,13 @@ Rule 0: System Integrity
 
     B. Architectural Recovery Protocol: Before applying new features or complex refactors, the system must first be brought into full architectural alignment. This is a mandatory, prioritized process:
 
-        Prune Unreachable Code: First, identify and delete any deprecated or unreachable modules. A module is considered deprecated if it is not imported and used by an active Orchestrator, a designated entry point, or another referenced module.
+        Prune Unreachable Modules: First, identify and delete any deprecated or unreachable Python modules.
+
+            Scope Limitation: This rule applies exclusively to .py files (except __init__.py) located within the /evolving_graphs/ Genome directory.
+
+            Protection Clause: All directories and files outside of /evolving_graphs/ are explicitly protected and must never be deleted or modified by this protocol. This includes but is not limited to .venv, .git, operational scripts (.sh), and requirements.txt.
+
+            Definition: A module is considered unreachable if it is not imported and used by an active Orchestrator, a designated entry point, or another transitively referenced module within the Genome.
 
         Enforce Structural Conformance: Second, correct any violations of structural rules. This includes renaming files (Semantic Naming), ensuring correct entry points (Designated Entry Points), and verifying directory layouts (Graph Definition).
 
