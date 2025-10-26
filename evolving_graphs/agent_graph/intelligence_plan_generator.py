@@ -1,8 +1,9 @@
 import os  # File system operations for path handling
+from .memory_interface import MemoryInterface  # External memory interface for querying knowledge
 from .agent_config import config  # Configuration settings for model selection and prompt templates
 from .intelligence_token_utils import token_estimator  # Token estimation utilities
 from .intelligence_plan_utils import (generate_insights_from_batch, synthesize_plan_from_insights,
-                                       validate_and_correct_plan)  # Plan processing utilities
+                                        validate_and_correct_plan)  # Plan processing utilities
 
 
 class Planner:
@@ -17,9 +18,10 @@ class Planner:
     with intelligent splitting that considers file content density and complexity.
     """
 
-    def __init__(self):
+    def __init__(self, memory: MemoryInterface):
         """Initialize the Planner with token estimation capabilities."""
         self.token_estimator = token_estimator
+        self.memory = memory
 
     def _generate_insights_from_batch(self, main_goal: str, batch_context: str) -> str:
         """(Map Phase) Generates insights for a single batch of files."""
@@ -30,7 +32,7 @@ class Planner:
         """(Reduce Phase) Synthesizes a final plan from a collection of insights."""
         return synthesize_plan_from_insights(main_goal, insights)
 
-    def create_plan(self, main_goal: str, backpack: list[dict]) -> str:
+    def create_plan(self, main_goal: str, backpack: list[dict]) -> tuple[str, list[str]]:
         """
         Generates a structured plan by breaking down a large context into manageable parts.
 
@@ -39,10 +41,15 @@ class Planner:
             backpack (list[dict]): List of relevant files with their content and justification.
 
         Returns:
-            str: A structured plan in JSON format containing steps to achieve the goal.
+            tuple: (plan, used_memory_ids_list) where plan is a structured plan in JSON format, and used_memory_ids_list is list of memory IDs used.
         """
         print(f"DEBUG: Planner received goal: {main_goal}")
         print(f"DEBUG: Planner received backpack with {len(backpack)} items. Starting hierarchical planning.")
+
+        # Query memory for planning knowledge
+        memory_results = self.memory.query_memory(main_goal, current_turn=0, n_results=5)  # Turn 0 since Planner doesn't track turns
+        used_memory_ids = memory_results['ids'][0] if memory_results['ids'] else []
+        memory_context = "\n".join(memory_results['documents'][0]) if memory_results['documents'] else ""
 
         if not backpack:
             print("DEBUG: Backpack is empty. Creating a simple plan based on goal alone.")
@@ -101,4 +108,4 @@ class Planner:
         final_plan = validate_and_correct_plan(final_plan)
 
         print(f"DEBUG: Returning final plan with length: {len(final_plan)}")
-        return final_plan
+        return final_plan, used_memory_ids

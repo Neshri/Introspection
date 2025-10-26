@@ -1,22 +1,22 @@
 import os  # File system operations for directory traversal and file reading
 import logging  # Logging for debugging and progress tracking
 import heapq  # Priority queue for goal-directed traversal
+import json  # JSON parsing for LLM responses
+from .memory_interface import MemoryInterface  # External memory interface for querying knowledge
 from .agent_config import config  # Configuration settings for model selection and parameters
 from .utils_collect_modules import collect_modules  # To collect all Python modules in the project directory
 from .intelligence_keyword_utils import extract_keywords_from_goal  # Keyword extraction utilities
 from .intelligence_relevance_utils import (compute_keyword_score, compute_combined_relevance_score,
-                                            should_enqueue_dependency, is_dependency_critical)  # Relevance scoring utilities
+                                             should_enqueue_dependency, is_dependency_critical)  # Relevance scoring utilities
 from .intelligence_import_utils import extract_imported_modules  # Import analysis utilities
+from .intelligence_llm_service import chat_llm  # Ollama integration for intelligent decisions
 
 class Scout:
-    def __init__(self):
-        self.working_dir = None
+    def __init__(self, memory: MemoryInterface, working_directory: str):
+        self.working_dir = working_directory
+        self.memory = memory
 
-    def set_working_directory(self, candidate_path: str):
-        """Set the working directory to the candidate path for scouting."""
-        self.working_dir = candidate_path
-
-    def scout_project(self, main_goal: str) -> list[dict]:
+    def scout_project(self, main_goal: str, current_turn: int) -> tuple[list[dict], list[str]]:
         # Handle case where main_goal is None to prevent AttributeError
         if main_goal is None:
             logging.warning("main_goal is None, defaulting to empty string")
@@ -24,13 +24,16 @@ class Scout:
 
         logging.info(f"Starting goal-directed scout for goal: {main_goal}")
 
-        # Extract keywords from goal for pre-filtering
-        keywords = extract_keywords_from_goal(main_goal)
+        # Query memory for relevant knowledge
+        memory_results = self.memory.query_memory(main_goal, current_turn=current_turn, n_results=5)
+        used_memory_ids = memory_results['ids'][0] if memory_results['ids'] else []
+        memory_context = "\n".join(memory_results['documents'][0]) if memory_results['documents'] else ""
+
+        # Extract keywords from goal and memory context for pre-filtering
+        keywords = extract_keywords_from_goal(main_goal + " " + memory_context)
         logging.info(f"Extracted keywords: {keywords}")
 
         # Collect all .py modules in the project directory
-        if not self.working_dir:
-            raise ValueError("Working directory not set. Call set_working_directory first.")
         all_modules = collect_modules(self.working_dir)
 
         logging.info(f"Found {len(all_modules)} modules in project")
@@ -59,9 +62,7 @@ class Scout:
             print(f"DEBUG: Marked '{current_module}' as visited (depth: {depth}, nodes: {nodes_explored})")
 
             logging.info(f"Visiting {current_module} for reason: {reason}")
-            print(f"DEBUG: Visiting module '{current_module}' for reason: {reason}")
-
-            # Evaluate relevance using LLM
+            print(f"DEBUG: Visiting '{current_module}' for {reason}")
             print(f"DEBUG: Evaluating relevance of '{current_module}'")
             try:
                 with open(current_path, 'r', encoding='utf-8') as f:
@@ -71,73 +72,106 @@ class Scout:
                 keyword_score = compute_keyword_score(keywords, code)
                 print(f"DEBUG: Keyword score for '{current_module}': {keyword_score}")
 
-                # Only proceed with LLM if keyword score is above threshold or it's critical
-                should_evaluate_llm = keyword_score >= config.RELEVANCE_THRESHOLD // 2 or depth == 0
-
-                llm_relevant = False
-                if should_evaluate_llm:
-                    response_json = get_scout_response(main_goal, current_path, code)
-                    llm_relevant = response_json.get('relevant', False)
-
-                combined_score = compute_combined_relevance_score(keyword_score, llm_relevant, depth)
-
-                if combined_score >= config.RELEVANCE_THRESHOLD or llm_relevant:
-                    print(f"DEBUG: Module '{current_module}' is relevant (score: {combined_score}), adding to backpack")
+                should_llm = keyword_score >= config.RELEVANCE_THRESHOLD // 2 or depth == 0
+                llm_resp = get_scout_response(main_goal, current_path, code) if should_llm else {}
+                llm_rel = llm_resp.get('relevant', False)
+                comb_score = compute_combined_relevance_score(keyword_score, llm_rel, depth)
+                if comb_score >= config.RELEVANCE_THRESHOLD or llm_rel:
+                    print(f"DEBUG: Module '{current_module}' relevant (score: {comb_score}), adding to backpack")
                     backpack.append({
                         "file_path": current_path,
-                        "justification": response_json.get('justification', 'Keyword-based relevance') if should_evaluate_llm else f"Keyword score: {keyword_score}",
-                        "key_elements": response_json.get('key_elements', []) if should_evaluate_llm else [],
+                        "justification": llm_resp.get('justification', f"Keyword score: {keyword_score}"),
+                        "key_elements": llm_resp.get('key_elements', []),
                         "full_code": code
                     })
                     logging.debug(f"Relevant: {current_module}")
                 else:
-                    print(f"DEBUG: Module '{current_module}' is not relevant (score: {combined_score})")
+                    print(f"DEBUG: Module '{current_module}' not relevant (score: {comb_score})")
                     logging.debug(f"Not relevant: {current_module}")
             except Exception as e:
                 logging.error(f"Error evaluating {current_module}: {e}")
 
-            # Extract imported modules and enqueue based on priority
+            # Extract imported modules and decide which to visit next using LLM
             next_modules = extract_imported_modules(code, current_path, all_modules)
             print(f"DEBUG: Extracted imports from {current_module}: {next_modules}")
-            for mod_name, import_reason in next_modules:
+
+            # Use LLM to decide which modules to visit next and why
+            modules_to_enqueue = decide_next_modules_to_visit(main_goal, current_module, current_path, code, next_modules, all_modules, keywords, depth)
+
+            for mod_name, priority, reasoning in modules_to_enqueue:
                 if mod_name not in visited and mod_name in all_modules:
-                    # Compute priority for dependency
                     dep_path = all_modules[mod_name]
-                    try:
-                        with open(dep_path, 'r', encoding='utf-8') as f:
-                            dep_code = f.read()
-                        dep_keyword_score = compute_keyword_score(keywords, dep_code)
-                        print(f"DEBUG: Keyword score for dependency '{mod_name}': {dep_keyword_score}")
-                        dep_combined_score = compute_combined_relevance_score(dep_keyword_score, False, depth + 1)  # Assume not LLM relevant yet
-                        print(f"DEBUG: Combined score for dependency '{mod_name}': {dep_combined_score}")
-                        if should_enqueue_dependency(dep_combined_score, depth + 1):
-                            # Priority is negative score (higher score = lower priority number)
-                            priority = -dep_combined_score if is_dependency_critical(dep_combined_score) else -dep_combined_score + 10
-                            heapq.heappush(priority_queue, (priority, depth + 1, mod_name, f"imported by {current_module} ({import_reason})", dep_path))
-                            print(f"DEBUG: Enqueued '{mod_name}' with priority {priority}")
-                        else:
-                            print(f"DEBUG: Not enqueuing '{mod_name}' (score: {dep_combined_score}, depth: {depth + 1})")
-                    except Exception as e:
-                        logging.warning(f"Could not read dependency {mod_name}: {e}")
+                    heapq.heappush(priority_queue, (priority, depth + 1, mod_name, f"imported by {current_module} - {reasoning}", dep_path))
+                    print(f"DEBUG: Enqueued '{mod_name}' with priority {priority} - {reasoning}")
 
         print(f"DEBUG: Goal-directed scout completed, backpack contains {len(backpack)} relevant modules")
         logging.info(f"Goal-directed scout completed: {len(backpack)} relevant modules in backpack (explored {nodes_explored} nodes)")
-        return backpack
+        return backpack, used_memory_ids
 
         
 
+def decide_next_modules_to_visit(main_goal, current_module, current_path, current_code, available_modules, all_modules, keywords, depth):
+    """Use Ollama to decide which modules to visit next based on the goal and current context."""
+    if not available_modules:
+        return []
+
+    modules_info = [f"- {m}: {r} (kw: {compute_keyword_score(keywords, open(all_modules[m], 'r', encoding='utf-8').read()) if m in all_modules else 'N/A'})" for m, r in available_modules]
+    modules_list = "\n".join(modules_info)
+
+    prompt = f"""
+Based on the goal: "{main_goal}"
+
+Current module being analyzed: {current_module}
+
+Available imported modules are provided as a list of short names:
+{modules_list}
+
+Please decide which of these imported modules should be visited next to best achieve the goal.
+
+Respond in JSON format with the following structure. Crucially, the "module_name" MUST be one of the short names from the provided list.
+{{
+    "modules_to_visit": [
+        {{
+            "module_name": "short_module_name_from_list",
+            "priority": number (0-10, where 0 is highest priority),
+            "reasoning": "Why this module should be visited."
+        }}
+    ]
+}}
+
+Only include modules from the list that should actually be visited. Do not invent new module names.
+Respond ONLY with the raw JSON object, without any introductory text, conversational pleasantries, or markdown formatting. Your entire response must be a single, valid JSON object.
+"""
+
+    try:
+        resp = chat_llm(prompt)
+        resp = resp.strip().lstrip("```json").rstrip("```").strip()
+        result = json.loads(resp)
+        modules_to_visit = []
+        for mod in result.get('modules_to_visit', []):
+            mod_name = mod.get('module_name')
+            if mod_name:
+                # Sanitize module name: if LLM returns full path, take only the last part
+                if '.' in mod_name:
+                    mod_name = mod_name.split('.')[-1]
+
+                priority = mod.get('priority', 10)
+                reasoning = mod.get('reasoning', 'LLM determined important')
+                modules_to_visit.append((mod_name, priority, reasoning))
+        return modules_to_visit
+    except (json.JSONDecodeError, Exception) as e:
+        logging.error(f"LLM decision error: {e}")
+        return [(m, 5, f"Fallback: {r}") for m, r in available_modules]
+
+
 def get_scout_response(main_goal, file_path, file_content):
-    """Mocked version for testing - returns relevance based on file path keywords."""
-    # Mock response based on file name and goal keywords
-    filename = file_path.lower()
-    goal_lower = main_goal.lower()
+    """Use Ollama to determine file relevance and extract key elements based on the main goal."""
+    prompt = f"""Analyze file {file_path} for goal "{main_goal}". Content: {file_content[:1000]}... Respond ONLY with the raw JSON object, without any introductory text, conversational pleasantries, or markdown formatting. Your entire response must be a single, valid JSON object: {{"relevant": true/false, "justification": "brief reason", "key_elements": ["important parts"]}}"""
 
-    # Check if file name contains goal keywords
-    relevant_keywords = ['code', 'execution', 'executor', 'intelligence_code_executor', 'pipeline_pipeline_executor']
-    is_relevant = any(keyword in filename for keyword in relevant_keywords)
-
-    return {
-        "relevant": is_relevant,
-        "justification": f"Mock relevance based on filename '{filename}' matching goal keywords",
-        "key_elements": ["mock_function_1", "mock_class_1"] if is_relevant else []
-    }
+    try:
+        resp = chat_llm(prompt)
+        resp = resp.strip().lstrip("```json").rstrip("```").strip()
+        return json.loads(resp)
+    except (json.JSONDecodeError, Exception) as e:
+        logging.error(f"Scout LLM error: {e}")
+        return {"relevant": False, "justification": f"LLM error: {e}", "key_elements": []}

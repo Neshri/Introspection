@@ -10,7 +10,7 @@ Rule 0: System Integrity
 
             Scope Limitation: This rule applies exclusively to .py files (except __init__.py) located within the /evolving_graphs/ Genome directory.
 
-            Protection Clause: All directories and files outside of /evolving_graphs/ are explicitly protected and must never be deleted or modified by this protocol. This includes but is not limited to .venv, .git, operational scripts (.sh), and requirements.txt.
+            Protection Clause: All directories and files outside of /evolving_graphs/ are explicitly protected and must never be deleted or modified by this protocol. This includes but is not limited to .venv, .git, the memory_db/ directory, operational scripts (.sh), and requirements.txt.
 
             Definition: A module is considered unreachable if it is not imported and used by an active Orchestrator, a designated entry point, or another transitively referenced module within the Genome.
 
@@ -56,7 +56,7 @@ Imports & API:
 
     Empty __init__.py: All __init__.py files must be empty.
 
-State & Role Integrity:
+State, Roles, & Knowledge Integrity:
 
     Acyclic Dependencies: Circular dependencies between any modules within a Graph are strictly forbidden. The import graph must be a Directed Acyclic Graph (DAG).
 
@@ -64,6 +64,11 @@ State & Role Integrity:
 
     Role Isolation: Roles are defined as classes that encapsulate a specific step of a workflow. A Role is forbidden from importing, instantiating, or directly calling another sibling Role. All data must be passed to it by the Orchestrator.
 
+    Database Location: The persistent memory database (e.g., memory_db/) must be located at the project root, outside the /evolving_graphs/ Genome. It is an external dependency, not part of the agent's mutable codebase.
+
+    Memory Token Limit: Individual memories stored in the database must not exceed 1,000 tokens, as measured by tiktoken. Logic for handling oversized content (e.g., chunking) must exist outside the core MemoryInterface.
+
 Final Compliance Check:
 
     Before completing a task, verify all changes against these rules.
+Use the linter to find rule violations.

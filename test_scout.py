@@ -7,12 +7,17 @@ from evolving_graphs.agent_graph.intelligence_project_scout import Scout
 
 def test_scout():
     import time
-    scout = Scout()
-    scout.set_working_directory('evolving_graphs/agent_graph')
+    # Create a mock memory interface for testing
+    class MockMemory:
+        def query_memory(self, query, current_turn=0, n_results=5):
+            return {'ids': [[]], 'documents': [[]]}
+
+    memory = MockMemory()
+    scout = Scout(memory, 'evolving_graphs/agent_graph')
     sample_goal = "Improve stability"
     print("Starting Scout with goal-directed traversal...")
     start_time = time.time()
-    backpack = scout.scout_project(sample_goal)
+    backpack, used_memory_ids = scout.scout_project(sample_goal, current_turn=0)
     end_time = time.time()
     time_taken = end_time - start_time
 

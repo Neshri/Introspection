@@ -5,7 +5,6 @@
 import time  # Standard library for time-related functions, used for sleep in the main loop
 from .agent_config import config  # Configuration settings
 from .utils_state_persistence import save_document_state, load_document_on_startup  # State management utilities
-from .engine_search_node import Node  # Node class for the tree structure in search algorithms
 from .intelligence_project_scout import Scout  # Intelligence components for scouting and planning
 from .intelligence_plan_generator import Planner  # Intelligence components for scouting and planning
 from .pipeline_pipeline_executor import Executor  # Executor class for generating and applying code changes

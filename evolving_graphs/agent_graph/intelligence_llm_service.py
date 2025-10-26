@@ -34,6 +34,15 @@ def chat_llm(prompt, model=None):
                 'num_predict': config.CONTEXT_LIMIT  # Max tokens for the LLM's response
             }
         )
-        return response['message']['content'].strip()
+        content = response['message']['content'].strip()
+
+        # Extract JSON from potentially messy response
+        json_start = content.find('{')
+        json_end = content.rfind('}')
+        if json_start != -1 and json_end != -1 and json_end > json_start:
+            extracted_json = content[json_start:json_end + 1]
+            return extracted_json
+        else:
+            return content
     except Exception as e:
         raise Exception(f"LLM chat failed: {str(e)}")

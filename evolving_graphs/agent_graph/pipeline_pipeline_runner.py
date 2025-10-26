@@ -2,6 +2,7 @@
 # PipelineRunner class encapsulates the scout→planner→executor→verifier→commit logic.
 
 import os
+from .memory_interface import MemoryInterface  # External memory interface for feedback loop
 
 from .intelligence_project_scout import Scout  # Intelligence components for scouting and planning
 from .intelligence_plan_generator import Planner  # Intelligence components for scouting and planning
@@ -27,9 +28,10 @@ class PipelineRunner:
         self.main_goal = main_goal
         self.current_code_state = initial_code_state
         self.root_dir = root_dir
-        self.scout = Scout()  # Scout for gathering context
-        self.scout.set_working_directory(os.path.join(self.root_dir, 'agent_graph'))
-        self.planner = Planner()  # Planner for creating strategy
+        self.turn_counter = 0  # Track pipeline turns for feedback
+        self.memory = MemoryInterface(db_path="memory_db")  # Memory interface for feedback loop
+        self.scout = Scout(self.memory, os.path.join(self.root_dir, 'agent_graph'))  # Scout for gathering context with memory
+        self.planner = Planner(self.memory)  # Planner for creating strategy with memory
         self.executor = Executor(main_goal, initial_code_state)  # Executor for code changes
         self.sandbox_manager = SandboxManager(self.root_dir)  # Unified sandbox manager
 
@@ -47,24 +49,32 @@ class PipelineRunner:
 
     def run_pipeline(self) -> dict:
         """
-        Run one iteration of the pipeline with sandbox management.
+        Run one iteration of the pipeline with sandbox management and memory feedback.
 
         Returns:
             dict: Result containing success status, updated code state, and any messages.
         """
         try:
+            # Increment turn counter
+            self.turn_counter += 1
+            used_memory_ids_this_turn = []
+
             # 0. SANDBOX SETUP: Create candidate copy
             print("Creating candidate sandbox...")
             self.create_candidate()
 
             # 1. SCOUT PHASE: Gather context
             print("Scout is analyzing the project...")
-            backpack = self.scout.scout_project(self.main_goal)
+            scout_result = self.scout.scout_project(self.main_goal, self.turn_counter)
+            backpack, scout_memory_ids = scout_result
+            used_memory_ids_this_turn.extend(scout_memory_ids)
             print(f"Scout returned a backpack with {len(backpack)} relevant files.")
 
             # 2. PLANNER PHASE: Create a strategy
             print("Planner is creating a plan...")
-            plan = self.planner.create_plan(self.main_goal, backpack)
+            planner_result = self.planner.create_plan(self.main_goal, backpack)
+            plan, planner_memory_ids = planner_result
+            used_memory_ids_this_turn.extend(planner_memory_ids)
             print(f"Planner created the following plan:\n{plan}")
 
             # 3. EXECUTOR PHASE: Write the new code
@@ -83,6 +93,9 @@ class PipelineRunner:
                 self.current_code_state = proposed_code_change  # Update the state
                 state_manager(self.current_code_state, self.main_goal)
                 self.promote_candidate()
+                # Memory feedback: +1.0 for success
+                for mem_id in used_memory_ids_this_turn:
+                    self.memory.update_memory_feedback(mem_id, 1.0, self.turn_counter)
                 return {
                     'success': True,
                     'code_state': self.current_code_state,
@@ -91,6 +104,9 @@ class PipelineRunner:
             else:
                 print("Change FAILED verification. Rolling back candidate.")
                 self.rollback_candidate()
+                # Memory feedback: -2.0 for failure
+                for mem_id in used_memory_ids_this_turn:
+                    self.memory.update_memory_feedback(mem_id, -2.0, self.turn_counter)
                 return {
                     'success': False,
                     'code_state': self.current_code_state,
@@ -101,6 +117,9 @@ class PipelineRunner:
             print(f"Error in pipeline: {e}")
             # Ensure candidate is rolled back on error
             self.rollback_candidate()
+            # Memory feedback: -2.0 for failure
+            for mem_id in used_memory_ids_this_turn:
+                self.memory.update_memory_feedback(mem_id, -2.0, self.turn_counter)
             return {
                 'success': False,
                 'code_state': self.current_code_state,
