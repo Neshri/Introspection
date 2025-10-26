@@ -7,7 +7,7 @@ try:
     from .linter_utils_core import is_boilerplate, is_import_or_comment  # To identify boilerplate and import/comment lines.
 except ImportError:
     # Fallback for standalone execution
-    from linter_utils_core import is_boilerplate, is_import_or_comment  # To identify boilerplate and import/comment lines.
+    from linter_utils_core import is_boilerplate, is_import_or_comment
 
 
 def check_duplication(target_files=None):

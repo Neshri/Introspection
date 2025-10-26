@@ -1,4 +1,4 @@
-# AgentTree/agent/pipeline/runner.py
+# pipeline_pipeline_runner.py (Pipeline Runner Orchestrator)
 # PipelineRunner class encapsulates the scout→planner→executor→verifier→commit logic.
 
 import os

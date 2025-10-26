@@ -3,10 +3,10 @@
 import os  # filesystem operations
 
 try:
-    from .linter_utils_core import count_code_lines  # To count non-comment, non-empty lines of code.
+    from .linter_utils_core import count_code_lines
 except ImportError:
     # Fallback for standalone execution
-    from linter_utils_core import count_code_lines  # To count non-comment, non-empty lines of code.
+    from linter_utils_core import count_code_lines
 
 
 def count_tokens(content):

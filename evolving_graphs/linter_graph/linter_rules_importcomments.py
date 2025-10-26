@@ -6,13 +6,11 @@ import ast  # abstract syntax tree for parsing Python code
 try:
     from .linter_utils_core import (  # To check for inline and following comments on imports.
         has_inline_comment,
-        has_following_comment,
     )
 except ImportError:
     # Fallback for standalone execution
     from linter_utils_core import (  # To check for inline and following comments on imports.
         has_inline_comment,
-        has_following_comment,
     )
 
 
@@ -57,7 +55,7 @@ def check_import_comments(target_files=None):
                                 if module_name in ['agent_tree', 'agent']:
                                     # Get the line where the import is
                                     import_line = lines[node.lineno - 1]
-                                    # Check for inline comment on the same line
+                                    # Check for explanatory comment (inline or following)
                                     if not has_inline_comment(import_line):
                                         # Format the import statement
                                         import_str = f"import {', '.join(alias.name for alias in node.names)}"
@@ -70,7 +68,7 @@ def check_import_comments(target_files=None):
                             if module_name in ['agent_tree', 'agent']:
                                 # Get the line where the import is
                                 import_line = lines[node.lineno - 1]
-                                # Check for inline comment on the same line
+                                # Check for explanatory comment (inline or following)
                                 if not has_inline_comment(import_line):
                                     # Format the import statement
                                     import_str = f"from {node.module} import {', '.join(alias.name for alias in node.names)}"

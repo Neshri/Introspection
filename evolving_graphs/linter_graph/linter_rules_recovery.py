@@ -6,11 +6,10 @@ import ast  # abstract syntax tree for parsing Python code
 
 def check_architectural_recovery(target_files=None):
     """
-    Diagnose and report architectural contradictions in flat architecture.
+    Diagnose and report architectural contradictions.
 
-    In flat architecture, no sub-directories exist, so architectural contradictions
-    are limited to improper module naming or direct circular imports that violate
-    semantic naming principles.
+    Identify violations of semantic naming, structural conformance, and other
+    architectural rules that require correction before proceeding with new features.
     """
     violations = []
 

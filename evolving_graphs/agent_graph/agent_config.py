@@ -25,7 +25,7 @@ class Config:
     ENABLE_CONTEXT_PATTERN_MATCHING = True
 
     # --- Planner Configuration (Hierarchical Map-Reduce) ---
-    # (Map Phase) Prompt for generating insights from a batch of files.
+    # Map Phase: Prompt for generating insights from a batch of files.
     PLANNER_INSIGHT_PROMPT_TEMPLATE = """
     As a senior software architect, your task is to analyze a batch of code in relation to a primary goal.
     Do not generate a full plan. Instead, provide a concise analysis of these files.
@@ -42,7 +42,7 @@ class Config:
     Be concise and focus on high-level strategy for this batch only.
     """
 
-    # (Reduce Phase) Prompt for synthesizing the final plan from all insights.
+    # Reduce Phase: Prompt for synthesizing the final plan from all insights.
     PLANNER_SYNTHESIS_PROMPT_TEMPLATE = """
     You are a master software architect. You have been given a primary goal and a series of high-level insights from your team who have analyzed different parts of the codebase.
     Your job is to synthesize these analyses into a single, coherent, and structured JSON plan.

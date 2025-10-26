@@ -1,9 +1,9 @@
 #
-# llm_tracker.py (A Leaf)
+# intelligence_prompt_tracker.py (Prompt Tracker Role)
 # This module tracks prompt performance for self-improvement.
 #
 # It uses the following modules:
-# - agent.utils.config: For configuration settings like log file path.
+# - agent_config: For configuration settings like log file path.
 #
 
 import os  # File system operations for log file management

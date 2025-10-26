@@ -1,6 +1,5 @@
-# agent.py (Modified for the Linear Pipeline with Agent Class Integration)
-# Imports: Standard time library, config and state_manager utilities, node for tree structures,
-# scout/planner/executor/verifier for pipeline components, Agent class for goal management.
+# agent_runner.py (Legacy Runner)
+# Imports: Standard time library; config; intelligence roles (Scout, Planner); pipeline roles (Executor, Verifier); Agent class for goal management.
 
 import time  # Standard library for time-related functions, used for sleep in the main loop
 from .agent_config import config  # Configuration settings
@@ -10,7 +9,7 @@ from .pipeline_pipeline_executor import Executor  # Executor class for generatin
 from .pipeline_code_verifier import Verifier  # Verifier class for testing and validating code changes
 from .agent_core import Agent  # Agent class for goal-setting and management
 
-# Backward compatibility: keep run() function using direct state_manager calls
+# Backward compatibility: keep run() function for legacy execution
 def run():
     """The main, continuous loop that drives the agent's behavior."""
     print("--- Initializing Agent ---")

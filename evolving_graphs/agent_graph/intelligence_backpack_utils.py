@@ -2,13 +2,13 @@
 intelligence_backpack_utils.py - Backpack chunking and processing utilities.
 
 Provides functions for chunking backpack context and building prompt sections
-for code execution and generation.
+for code execution and generation tasks.
 """
 
 import json  # JSON handling for plan data
 
 
-# Configuration constants for iterative backpack processing
+# Configuration constants
 BACKPACK_CHUNK_SIZE_LIMIT = 4000  # Maximum tokens/chars per chunk
 MAX_ITERATION_LIMIT = 5  # Maximum number of iterative LLM calls
 

@@ -1,9 +1,12 @@
 #
-# llm_executor.py (A Leaf)
-# This module handles code generation and execution using the LLM.
+# intelligence_code_executor.py (Code Executor Role)
+# This module handles code generation using the LLM with architectural compliance.
 #
 # It uses the following modules:
-# - agent.utils.config: To get the model name and prompt templates.
+# - agent_config: Configuration for prompts and settings.
+# - intelligence_llm_service: Standardized LLM service.
+# - intelligence_backpack_utils: Backpack processing utilities.
+# - intelligence_execution_utils: Safe code execution utilities.
 #
 
 import json  # JSON handling for plan data

@@ -1,7 +1,6 @@
 # agent_core.py (Agent Class Implementation)
-# This module defines the Agent class with goal-setting capabilities and run loop.
-# Imports: Standard library for type hints, string operations, time, config, state_manager,
-# intelligence modules (Scout, Planner), pipeline modules (Executor, Verifier).
+# This module defines the Agent class with goal-setting, validation, and run loop capabilities.
+# Imports: Standard library for type hints, regex, time; config; intelligence roles (Scout, Planner); pipeline roles (Executor, Verifier).
 
 import re  # Regular expressions for goal validation patterns
 import time  # Time delays for agent execution loops
@@ -100,7 +99,7 @@ class Agent:
         print(f"DEBUG: Using agent goal: {loaded_goal}")
 
         # Initialize the pipeline runner
-        from .pipeline_pipeline_runner import PipelineRunner  # To manage the execution pipeline with goal tracking
+        from .pipeline_pipeline_runner import PipelineRunner  # To orchestrate the execution pipeline with goal tracking
         pipeline_runner = PipelineRunner(self.main_goal, root_dir="evolving_graphs")
 
         # Agent class integration for the new run_with_agent function

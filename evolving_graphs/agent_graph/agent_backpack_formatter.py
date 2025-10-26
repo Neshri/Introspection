@@ -1,6 +1,6 @@
 #
-# utils.py (A Leaf)
-# This module contains shared utility functions for formatting and common operations.
+# agent_backpack_formatter.py (A Leaf)
+# This module provides functions for formatting backpack contexts for LLM prompts.
 #
 
 def format_backpack_context(backpack, chunk_index=None, total_chunks=None):

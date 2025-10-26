@@ -1,5 +1,5 @@
 #
-# llm_service.py (A Leaf)
+# intelligence_llm_service.py (LLM Service Role)
 # This module provides standardized LLM chat functionality with consistent error handling.
 #
 

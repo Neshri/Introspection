@@ -46,7 +46,7 @@ def check_cross_graph_imports(target_files=None):
                     violations.append((
                         filepath,
                         import_stmt,
-                        "Inter-Component Execution: Direct cross-graph imports are forbidden. Use subprocess execution via entry points."
+                        "Graph Decoupling: Direct cross-graph imports are forbidden. Use subprocess execution via entry points."
                     ))
 
                 # Check for upward traversal (..)
@@ -80,7 +80,7 @@ def check_cross_graph_imports(target_files=None):
                             violations.append((
                                 filepath,
                                 "subprocess.run()",
-                                "Inter-Component Execution: subprocess.run() not allowed when file imports cross-graph modules."
+                                "Graph Decoupling: subprocess.run() not allowed when file imports cross-graph modules."
                             ))
                         # Otherwise, subprocess.run() for external processes is allowed
 
