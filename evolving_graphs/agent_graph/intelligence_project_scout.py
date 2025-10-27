@@ -108,7 +108,54 @@ class Scout:
         logging.info(f"Goal-directed scout completed: {len(backpack)} relevant modules in backpack (explored {nodes_explored} nodes)")
         return backpack, used_memory_ids
 
-        
+    def query(self, main_goal: str, subtask: str) -> tuple:
+        # Combine main_goal and subtask for querying
+        combined_goal = main_goal + " - " + subtask
+
+        # Query memory for relevant knowledge
+        memory_results = self.memory.query_memory(combined_goal, current_turn=0, n_results=5)
+        used_memory_ids = memory_results['ids'][0] if memory_results['ids'] else []
+        memory_context = "\n".join(memory_results['documents'][0]) if memory_results['documents'] else ""
+
+        # Extract keywords from combined goal and memory context
+        keywords = extract_keywords_from_goal(combined_goal + " " + memory_context)
+        logging.info(f"Extracted keywords for query: {keywords}")
+
+        # Collect all .py modules in the project directory
+        all_modules = collect_modules(self.working_dir)
+
+        # Filter relevant modules based on keywords
+        backpack = []
+        for mod_name, mod_path in all_modules.items():
+            try:
+                with open(mod_path, 'r', encoding='utf-8') as f:
+                    code = f.read()
+
+                keyword_score = compute_keyword_score(keywords, code)
+                if keyword_score >= config.RELEVANCE_THRESHOLD:
+                    backpack.append({
+                        "file_path": mod_path,
+                        "justification": f"Keyword score: {keyword_score}",
+                        "key_elements": [],
+                        "full_code": code
+                    })
+                    logging.debug(f"Relevant module for query: {mod_name}")
+            except Exception as e:
+                logging.error(f"Error reading {mod_path} during query: {e}")
+
+        # Generate response using LLM based on goal, subtask, and context
+        prompt = f"Based on the main goal '{main_goal}' and subtask '{subtask}', using the memory context and relevant modules found, provide a response."
+        prompt += f"\nMemory context: {memory_context[:500]}..."
+        prompt += f"\nNumber of relevant modules: {len(backpack)}"
+        try:
+            response = chat_llm(prompt)
+        except Exception as e:
+            logging.error(f"Error generating response in query: {e}")
+            response = f"Error generating response: {e}"
+
+        return backpack, used_memory_ids, response
+
+
 
 def decide_next_modules_to_visit(main_goal, current_module, current_path, current_code, available_modules, all_modules, keywords, depth):
     """Use Ollama to decide which modules to visit next based on the goal and current context."""

@@ -4,6 +4,7 @@
 import os
 from .memory_interface import MemoryInterface  # External memory interface for feedback loop
 
+from .task_planner_graph import PlanGraph # Data structure used for creating more complex planning in the pipeline
 from .code_descriptor import HierarchicalCodeDescriptor  # Mandatory import for architecture analysis
 from .intelligence_project_scout import Scout  # Intelligence components for scouting and planning
 from .intelligence_plan_generator import Planner  # Intelligence components for scouting and planning
@@ -24,6 +25,12 @@ class CodeArchitect:
         """
         Generates and returns the architecture summary as a string.
         """
+        try:
+            architecture_file = os.path.join(self.root_dir, "codebase_architecture.md")
+            with open(architecture_file, "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception as e:
+            print("No previous codebase_architecture.md found")
         try:
             self.descriptor.generate_hierarchical_description()
             architecture_file = os.path.join(self.root_dir, "codebase_architecture.md")
@@ -50,11 +57,16 @@ class PipelineRunner:
         self.root_dir = root_dir
         self.turn_counter = 0  # Track pipeline turns for feedback
         self.memory = MemoryInterface(db_path="memory_db")  # Memory interface for feedback loop
-        self.architect = CodeArchitect(self.root_dir)  # CodeArchitect for generating architecture summaries
-        self.scout = Scout(self.memory, os.path.join(self.root_dir, 'agent_graph'))  # Scout for gathering context with memory
         self.planner = Planner(self.memory)  # Planner for creating strategy with memory
         self.executor = Executor(main_goal)  # Executor for code changes
         self.sandbox_manager = SandboxManager(self.root_dir)  # Unified sandbox manager
+        # Create sandbox during initialization
+        self.create_candidate()
+        # Set root_dir to the sandbox location
+        self.root_dir = self.sandbox_manager.directory_sandbox.candidate_dir
+        # Initialize components with sandbox root_dir
+        self.architect = CodeArchitect(self.root_dir)  # CodeArchitect for generating architecture summaries
+        self.scout = Scout(self.memory, os.path.join(self.root_dir, 'agent_graph'))  # Scout for gathering context with memory
 
     def create_candidate(self) -> None:
         """Create candidate sandbox using unified sandbox manager."""
@@ -80,10 +92,6 @@ class PipelineRunner:
             self.turn_counter += 1
             used_memory_ids_this_turn = []
 
-            # 0. SANDBOX SETUP: Create candidate copy
-            print("Creating candidate sandbox...")
-            self.create_candidate()
-
             # 0.5. ARCHITECT PHASE: Generate architecture summary
             print("Architect is generating the architecture summary...")
             try:
@@ -93,58 +101,34 @@ class PipelineRunner:
                 print(f"Architecture generation failed: {e}. Proceeding without architecture summary.")
                 architecture_summary = None
 
-            # 1. SCOUT PHASE: Gather context
+            # 1. SCOUT PHASE: Gather context for brainstorming ideas
             print("Scout is analyzing the project...")
             scout_result = self.scout.scout_project(self.main_goal, self.turn_counter)
             backpack, scout_memory_ids = scout_result
             used_memory_ids_this_turn.extend(scout_memory_ids)
-            if architecture_summary:
-                # Append architecture summary to the backpack
-                backpack.append({
-                    'file_path': 'codebase_architecture.md',
-                    'content': architecture_summary,
-                    'type': 'architecture_summary'
-                })
             print(f"Scout returned a backpack with {len(backpack)} relevant files.")
+           
+           #TODO scout <--> planner <--> executor
+            
+            plan = PlanGraph(self.main_goal)
 
-            # 2. PLANNER PHASE: Create a strategy
-            print("Planner is creating a plan...")
-            planner_result = self.planner.create_plan(self.main_goal, backpack)
-            plan, planner_memory_ids = planner_result
+            planner_result = self.planner.update_plan(self.main_goal, backpack, plan, architecture_summary)
+            plan = planner_result
+            plan.display()
             used_memory_ids_this_turn.extend(planner_memory_ids)
-            print(f"Planner created the following plan:\n{plan}")
+            while scout_query:
+                backpack, scout_memory_ids, query_answer = self.scout.query(self.main_goal, scout_query)    
+                planner_result = self.planner.update_plan(self.main_goal, backpack, plan, architecture_summary, query_answer)
+                planner_memory_ids, scout_query = planner_result
+                pass
 
-            # 3. EXECUTOR PHASE: Write the new code
-            print("Executor is generating the code change...")
-            proposed_code_change = self.executor.execute_plan(plan, backpack)
-            print(f"Executor returned proposed change (length: {len(proposed_code_change)})")
 
-            # 4. VERIFIER PHASE: Check the work using subprocess execution of linter_graph_main.py
-            print("Verifier is testing the new code...")
-            verification_result = self.verify_with_linter(proposed_code_change)
-            print(f"Verifier returned result: Success={verification_result['success']}")
 
-            # 5. COMMIT PHASE: Decide whether to accept the change
-            if verification_result['success']:
-                print("Change VERIFIED. Promoting candidate to baseline.")
-                self.promote_candidate()
-                # Memory feedback: +1.0 for success
-                for mem_id in used_memory_ids_this_turn:
-                    self.memory.update_memory_feedback(mem_id, 1.0, self.turn_counter)
-                return {
-                    'success': True,
-                    'message': 'Pipeline completed successfully and promoted.'
-                }
-            else:
-                print("Change FAILED verification. Rolling back candidate.")
-                self.rollback_candidate()
-                # Memory feedback: -2.0 for failure
-                for mem_id in used_memory_ids_this_turn:
-                    self.memory.update_memory_feedback(mem_id, -2.0, self.turn_counter)
-                return {
-                    'success': False,
-                    'message': 'Pipeline failed verification.'
-                }
+
+
+
+
+
 
         except Exception as e:
             print(f"Error in pipeline: {e}")
