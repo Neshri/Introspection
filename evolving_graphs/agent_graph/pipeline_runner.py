@@ -1,13 +1,36 @@
-# pipeline_pipeline_runner.py (Pipeline Runner Orchestrator)
+# pipeline_runner.py (Pipeline Runner Orchestrator)
 # PipelineRunner class encapsulates the scout→planner→executor→verifier→commit logic.
 
 import os
 from .memory_interface import MemoryInterface  # External memory interface for feedback loop
 
+from .code_descriptor import HierarchicalCodeDescriptor  # Mandatory import for architecture analysis
 from .intelligence_project_scout import Scout  # Intelligence components for scouting and planning
 from .intelligence_plan_generator import Planner  # Intelligence components for scouting and planning
-from .pipeline_pipeline_executor import Executor  # Executor class for generating and applying code changes
+from .pipeline_executor import Executor  # Executor class for generating and applying code changes
 from .sandbox_utils import SandboxManager  # Unified sandboxing API for directory and execution isolation
+
+
+class CodeArchitect:
+    """
+    CodeArchitect role: Generates hierarchical architecture summaries using HierarchicalCodeDescriptor.
+    """
+
+    def __init__(self, root_dir: str):
+        self.root_dir = root_dir
+        self.descriptor = HierarchicalCodeDescriptor(root_dir)
+
+    def generate_architecture_summary(self) -> str:
+        """
+        Generates and returns the architecture summary as a string.
+        """
+        try:
+            self.descriptor.generate_hierarchical_description()
+            architecture_file = os.path.join(self.root_dir, "codebase_architecture.md")
+            with open(architecture_file, "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception as e:
+            raise Exception(f"Architecture generation failed: {e}")
 
 
 class PipelineRunner:
@@ -27,6 +50,7 @@ class PipelineRunner:
         self.root_dir = root_dir
         self.turn_counter = 0  # Track pipeline turns for feedback
         self.memory = MemoryInterface(db_path="memory_db")  # Memory interface for feedback loop
+        self.architect = CodeArchitect(self.root_dir)  # CodeArchitect for generating architecture summaries
         self.scout = Scout(self.memory, os.path.join(self.root_dir, 'agent_graph'))  # Scout for gathering context with memory
         self.planner = Planner(self.memory)  # Planner for creating strategy with memory
         self.executor = Executor(main_goal)  # Executor for code changes
@@ -60,11 +84,27 @@ class PipelineRunner:
             print("Creating candidate sandbox...")
             self.create_candidate()
 
+            # 0.5. ARCHITECT PHASE: Generate architecture summary
+            print("Architect is generating the architecture summary...")
+            try:
+                architecture_summary = self.architect.generate_architecture_summary()
+                print("Architecture summary generated successfully.")
+            except Exception as e:
+                print(f"Architecture generation failed: {e}. Proceeding without architecture summary.")
+                architecture_summary = None
+
             # 1. SCOUT PHASE: Gather context
             print("Scout is analyzing the project...")
             scout_result = self.scout.scout_project(self.main_goal, self.turn_counter)
             backpack, scout_memory_ids = scout_result
             used_memory_ids_this_turn.extend(scout_memory_ids)
+            if architecture_summary:
+                # Append architecture summary to the backpack
+                backpack.append({
+                    'file_path': 'codebase_architecture.md',
+                    'content': architecture_summary,
+                    'type': 'architecture_summary'
+                })
             print(f"Scout returned a backpack with {len(backpack)} relevant files.")
 
             # 2. PLANNER PHASE: Create a strategy

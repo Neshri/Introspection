@@ -5,7 +5,7 @@ import time  # Standard library for time-related functions, used for sleep in th
 from .agent_config import config  # Configuration settings
 from .intelligence_project_scout import Scout  # Intelligence components for scouting and planning
 from .intelligence_plan_generator import Planner  # Intelligence components for scouting and planning
-from .pipeline_pipeline_executor import Executor  # Executor class for generating and applying code changes
+from .pipeline_executor import Executor  # Executor class for generating and applying code changes
 from .pipeline_code_verifier import Verifier  # Verifier class for testing and validating code changes
 from .agent_core import Agent  # Agent class for goal-setting and management
 

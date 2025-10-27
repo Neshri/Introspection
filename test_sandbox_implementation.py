@@ -11,7 +11,7 @@ import os  # Standard library for filesystem operations
 import shutil  # Standard library for directory operations
 import tempfile  # Standard library for temporary directories
 
-from evolving_graphs.agent_graph.pipeline_pipeline_runner import PipelineRunner  # Core pipeline orchestrator
+from evolving_graphs.agent_graph.pipeline_runner import PipelineRunner  # Core pipeline orchestrator
 
 
 def setup_test_environment():

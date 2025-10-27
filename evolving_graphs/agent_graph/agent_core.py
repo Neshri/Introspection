@@ -8,7 +8,7 @@ from typing import Optional  # Type hints for optional return values
 from .agent_config import config  # To access configuration settings like INITIAL_GOAL
 from .intelligence_project_scout import Scout  # To scout project structure and capabilities
 from .intelligence_plan_generator import Planner  # To generate plans based on current state
-from .pipeline_pipeline_executor import Executor  # To execute code changes in the pipeline
+from .pipeline_executor import Executor  # To execute code changes in the pipeline
 from .pipeline_code_verifier import Verifier  # To verify code changes meet quality standards
 
 
@@ -99,7 +99,7 @@ class Agent:
         print(f"DEBUG: Using agent goal: {loaded_goal}")
 
         # Initialize the pipeline runner
-        from .pipeline_pipeline_runner import PipelineRunner  # To orchestrate the execution pipeline with goal tracking
+        from .pipeline_runner import PipelineRunner  # To orchestrate the execution pipeline with goal tracking
         pipeline_runner = PipelineRunner(self.main_goal, root_dir="evolving_graphs")
 
         # Agent class integration for the new run_with_agent function
