@@ -120,13 +120,14 @@ class PipelineRunner:
 
             while role_id < 3:
                 if role_id < 0:
-                    raise Exception(f"The scout gave up :(")
+                    raise Exception(f"The scout gave up :({e}")
                 if role_list[role_id] == "scout":
                     self.scout.query(self.main_goal, plan)
                     role_id += 1
                     continue
                 if role_list[role_id] == "planner":
                     planner_result = self.planner.update_plan(self.main_goal, backpack, plan, architecture_summary)
+                    print("Plan updated")
                     plan , planner_memory_ids = planner_result
                     plan.display()
                     used_memory_ids_this_turn.extend(planner_memory_ids)

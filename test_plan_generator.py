@@ -99,21 +99,22 @@ def test_update_plan_functionality():
         # Add a pending objective to unfold
         obj_node = plan.add_objective("Set up database schema for users", plan.root_id)
 
-        # Create a meaningful backpack with insights
+        # Create a meaningful backpack with insights for stability improvements
         backpack = [
             {
                 "content": """
-                The project uses SQLite for data storage.
-                User authentication requires fields: id, username, email, password_hash, created_at.
-                Password hashing should use bcrypt.
-                Database schema should include proper indexes.
+                The project uses Python with error handling in place.
+                Stability improvements require better exception handling and logging.
+                Code should include proper error recovery mechanisms.
+                Testing should cover edge cases and error scenarios.
                 """
             },
             {
                 "content": """
-                Existing codebase has models in models.py.
-                Database connection is handled via db_connection.py.
-                Migration scripts are in migrations/ directory.
+                Existing codebase has main application in app.py.
+                Error logging is handled via logger.py.
+                Unit tests are in tests/ directory.
+                Configuration is managed in config.py.
                 """
             }
         ]
@@ -121,35 +122,79 @@ def test_update_plan_functionality():
         # Mock the LLM calls to avoid actual API calls
         with patch.object(planner, '_generate_insights_from_batch') as mock_insights, \
              patch.object(planner, '_synthesize_plan_from_insights') as mock_synthesize, \
-             patch('evolving_graphs.agent_graph.intelligence_plan_utils.validate_and_correct_plan') as mock_validate:
+             patch('evolving_graphs.agent_graph.intelligence_plan_validation_utils.validate_and_correct_plan') as mock_validate:
 
             # Mock insights generation
-            mock_insights.return_value = "Insight: Need to create user table with proper fields"
+            mock_insights.return_value = "Insight: Need to enhance error handling and add comprehensive testing"
 
-            # Mock plan synthesis
+            # Mock plan synthesis for stability improvements
             mock_synthesize.return_value = '''{
-                "steps": [
-                    "Create a new migration file in migrations/ directory with SQL to create user table",
-                    "Edit src/models.py to add User class with id, username, email, password_hash fields",
-                    "Create src/utils/auth.py with bcrypt password hashing functions"
+                "objectives": [
+                    {
+                        "description": "Enhance error handling and logging throughout the application",
+                        "actions": [
+                            {
+                                "role": "code_editor",
+                                "command": {"description": "Edit logger.py to add detailed error logging with stack traces"},
+                                "justification": "Need better error tracking for stability"
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Implement comprehensive testing for edge cases",
+                        "actions": [
+                            {
+                                "role": "code_editor",
+                                "command": {"description": "Edit tests/test_edge_cases.py to add tests for error conditions and recovery"},
+                                "justification": "Require thorough testing to ensure stability"
+                            },
+                            {
+                                "role": "code_editor",
+                                "command": {"description": "Create tests/integration_tests.py with end-to-end stability tests"},
+                                "justification": "Need integration testing for overall system stability"
+                            }
+                        ]
+                    }
                 ]
             }'''
 
             # Mock validation
             mock_validate.return_value = '''{
-                "steps": [
-                    "Create a new migration file in migrations/ directory with SQL to create user table",
-                    "Edit src/models.py to add User class with id, username, email, password_hash fields",
-                    "Create src/utils/auth.py with bcrypt password hashing functions"
+                "objectives": [
+                    {
+                        "description": "Enhance error handling and logging throughout the application",
+                        "actions": [
+                            {
+                                "role": "code_editor",
+                                "command": {"description": "Edit logger.py to add detailed error logging with stack traces"},
+                                "justification": "Need better error tracking for stability"
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Implement comprehensive testing for edge cases",
+                        "actions": [
+                            {
+                                "role": "code_editor",
+                                "command": {"description": "Edit tests/test_edge_cases.py to add tests for error conditions and recovery"},
+                                "justification": "Require thorough testing to ensure stability"
+                            },
+                            {
+                                "role": "code_editor",
+                                "command": {"description": "Create tests/integration_tests.py with end-to-end stability tests"},
+                                "justification": "Need integration testing for overall system stability"
+                            }
+                        ]
+                    }
                 ]
             }'''
 
-            # Call update_plan
-            updated_plan = planner.update_plan(
-                main_goal="Implement user authentication system",
+            # Call update_plan with "Improve stability" as main_goal to test the fix
+            updated_plan, planner_memory_ids = planner.update_plan(
+                main_goal="Improve stability",
                 backpack=backpack,
                 plan=plan,
-                codebase_summary="Project structure: src/models.py, src/db_connection.py, migrations/"
+                codebase_summary="Project structure: app.py, logger.py, config.py, tests/"
             )
 
             # Verify the plan was updated correctly
@@ -159,15 +204,17 @@ def test_update_plan_functionality():
             obj_node_updated = updated_plan.get_node(obj_node.id)
             assert obj_node_updated.status == STATUS_COMPLETED, "Objective should be marked as completed"
 
-            # Check that action nodes were added
-            pending_objectives = [node_id for node_id, node in updated_plan.nodes.items()
-                                  if isinstance(node, type(updated_plan.get_node(obj_node.id))) and node.status == STATUS_PENDING and not node.children]
-            assert len(pending_objectives) == 0, "Should have no pending objectives with no children"
+            # Check that sub-objectives were created
+            sub_objectives = [node for node in updated_plan.nodes.values()
+                             if hasattr(node, 'parent_id') and node.parent_id == obj_node.id and hasattr(node, 'description')]
+            assert len(sub_objectives) == 2, f"Should have 2 sub-objectives, got {len(sub_objectives)}"
 
-            # Count action nodes under the unfolded objective
-            action_count = sum(1 for node in updated_plan.nodes.values()
-                             if hasattr(node, 'parent_id') and node.parent_id == obj_node.id)
-            assert action_count == 3, f"Should have 3 action nodes, got {action_count}"
+            # Count action nodes under all sub-objectives
+            action_count = 0
+            for sub_obj in sub_objectives:
+                action_count += sum(1 for node in updated_plan.nodes.values()
+                                   if hasattr(node, 'parent_id') and node.parent_id == sub_obj.id)
+            assert action_count == 3, f"Should have 3 action nodes total, got {action_count}"
 
             print("✓ update_plan functionality test passed")
             updated_plan.display()

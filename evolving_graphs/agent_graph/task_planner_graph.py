@@ -41,7 +41,7 @@ class PlanGraph:
     def __init__(self, root_objective: str):
         """Initializes the graph with a root objective."""
         self.nodes: Dict[str, Union[ObjectiveNode, ActionNode]] = {}
-        root_node = ObjectiveNode(description=root_objective, status=STATUS_IN_PROGRESS)
+        root_node = ObjectiveNode(description=root_objective, status=STATUS_PENDING)
         self.root_id = root_node.id
         self._add_node_internal(root_node)
 

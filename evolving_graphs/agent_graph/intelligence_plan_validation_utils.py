@@ -1,87 +1,24 @@
 """
-intelligence_plan_utils.py - Plan generation and validation utilities.
+intelligence_plan_validation_utils.py - Plan validation and correction utilities.
 
-Provides functions for generating insights from backpack batches, synthesizing plans,
-and validating/correcting file references in generated plans.
+Provides functions for validating file references in generated plans against the actual project structure,
+correcting incorrect file names or paths, and repairing invalid JSON structures.
 """
 
 import json  # JSON handling for structured plan output
-import re  # Regular expressions for extracting JSON from markdown blocks
 import os  # File system operations for path handling
-from .intelligence_llm_service import chat_llm  # Standardized LLM service
-from .agent_config import config  # Configuration settings for model selection and prompt templates
+import re  # Regular expressions for extracting JSON from markdown blocks
+from .json_utils import (validate_json_structure, repair_json_structure,
+                         extract_json_from_markdown, safe_json_loads)  # JSON processing utilities
+from .debug_utils import debug_print, log_error  # Debug logging utilities
 from .utils_collect_modules import collect_modules  # Utility to collect all Python modules in project
-
-
-def generate_insights_from_batch(main_goal: str, batch_context: str, token_count: int) -> str:
-    """
-    Generates insights for a single batch of files using the planner insight prompt.
-
-    Args:
-        main_goal (str): The programming goal to achieve
-        batch_context (str): The context from the current batch of files
-        token_count (int): Estimated token count for the batch
-
-    Returns:
-        str: LLM-generated insights for the batch
-    """
-    print(f"DEBUG: Generating insights for batch of ~{token_count} tokens (size {len(batch_context)} chars)")
-    prompt = config.PLANNER_INSIGHT_PROMPT_TEMPLATE.format(
-        goal=main_goal,
-        backpack_context=batch_context
-    )
-    return chat_llm(prompt)
-
-
-def synthesize_plan_from_insights(main_goal: str, insights: list[str]) -> str:
-    """
-    Synthesizes a final plan from a collection of insights using reduce phase.
-
-    Args:
-        main_goal (str): The programming goal to achieve
-        insights (list[str]): List of insights from all batches
-
-    Returns:
-        str: A structured plan in JSON format
-    """
-    print("DEBUG: Synthesizing final plan from all generated insights...")
-    formatted_insights = "\n---\n".join(insights)
-    prompt = config.PLANNER_SYNTHESIS_PROMPT_TEMPLATE.format(
-        goal=main_goal,
-        insights=formatted_insights
-    )
-
-    llm_output = chat_llm(prompt)
-    print(f"DEBUG: LLM generated raw output: {llm_output[:120]}...")
-
-    # Robustly find and extract JSON from within markdown fences
-    json_match = re.search(r"```json\s*(\{.*?\})\s*```", llm_output, re.DOTALL)
-    if json_match:
-        print("DEBUG: Extracted JSON from markdown block.")
-        plan = json_match.group(1)
-    else:
-        # If no markdown block is found, assume the output is already clean JSON
-        plan = llm_output
-
-    # Now, validate the cleaned plan
-    try:
-        json.loads(plan)
-        print("DEBUG: Generated plan is valid JSON")
-        return plan
-    except json.JSONDecodeError:
-        print("DEBUG: Plan JSON validation failed, wrapping in basic structure")
-        return json.dumps({
-            "goal": main_goal,
-            "steps": [f"LLM produced non-JSON plan after cleanup attempt: {plan}"],
-            "estimated_complexity": "high",
-            "risk_assessment": "Failed to synthesize a structured plan from insights. The LLM's output was not valid JSON even after cleanup."
-        })
 
 
 def validate_and_correct_plan(plan_json_str: str) -> str:
     """
     Validates file references in the generated plan against the actual project structure
     and corrects any incorrect file names or paths. Ensures relative paths and architectural compliance.
+    Also repairs invalid JSON structures if possible.
 
     Args:
         plan_json_str (str): The JSON plan string from synthesis phase.
@@ -89,13 +26,55 @@ def validate_and_correct_plan(plan_json_str: str) -> str:
     Returns:
         str: The corrected JSON plan string with valid file references.
     """
-    print("DEBUG: Starting plan validation and correction...")
+    debug_print("Starting plan validation and correction...")
 
-    try:
-        plan_dict = json.loads(plan_json_str)
-    except json.JSONDecodeError:
-        print("DEBUG: Plan JSON validation failed during correction, returning original")
-        return plan_json_str
+    # First, ensure we have valid JSON
+    plan_dict = safe_json_loads(plan_json_str)
+    if plan_dict.get("error"):
+        debug_print(f"Plan JSON validation failed during correction: {plan_dict['error']}, attempting repair...")
+        repaired_json = repair_json_structure(plan_json_str)
+        if repaired_json:
+            plan_dict = safe_json_loads(repaired_json)
+            if not plan_dict.get("error"):
+                debug_print("Successfully repaired JSON structure")
+            else:
+                debug_print("Repair failed, returning a minimal valid plan")
+                return safe_json_loads("", {
+                    "goal": "Fix plan generation",
+                    "objectives": [
+                        {
+                            "description": "Repair invalid LLM output",
+                            "actions": [
+                                {
+                                    "role": "code_editor",
+                                    "command": {"description": "Fix JSON parsing in plan generation"},
+                                    "justification": "LLM produced malformed JSON that needs correction"
+                                }
+                            ]
+                        }
+                    ],
+                    "estimated_complexity": "medium",
+                    "risk_assessment": "JSON parsing failed, created fallback plan"
+                })
+        else:
+            debug_print("Repair failed, returning a minimal valid plan")
+            return json.dumps({
+                "goal": "Fix plan generation",
+                "objectives": [
+                    {
+                        "description": "Repair invalid LLM output",
+                        "actions": [
+                            {
+                                "role": "code_editor",
+                                "command": {"description": "Fix JSON parsing in plan generation"},
+                                "justification": "LLM produced malformed JSON that needs correction"
+                            }
+                        ]
+                    }
+                ],
+                "estimated_complexity": "medium",
+                "risk_assessment": "JSON parsing failed, created fallback plan"
+            })
 
     # Collect current project modules for validation
     # Use the working directory from Scout if available, otherwise use current directory
@@ -119,7 +98,7 @@ def validate_and_correct_plan(plan_json_str: str) -> str:
             if corrected_file:
                 corrected_files.append(corrected_file)
             else:
-                print(f"DEBUG: Could not correct file reference: {file_ref}")
+                debug_print(f"Could not correct file reference: {file_ref}")
         plan_dict['key_files_to_modify'] = corrected_files
 
     # Check and correct file references in steps
@@ -134,10 +113,10 @@ def validate_and_correct_plan(plan_json_str: str) -> str:
     # Convert back to JSON string
     try:
         corrected_plan_json = json.dumps(plan_dict)
-        print("DEBUG: Plan validation and correction completed successfully")
+        debug_print("Plan validation and correction completed successfully")
         return corrected_plan_json
     except Exception as e:
-        print(f"DEBUG: Error converting corrected plan to JSON: {e}")
+        log_error(f"Error converting corrected plan to JSON: {e}")
         return plan_json_str
 
 
@@ -166,7 +145,7 @@ def _correct_file_reference(file_ref: str, filename_to_path: dict, project_root:
         filename_lower = filename.lower().replace('.py', '')
         if file_ref_lower == filename_lower:
             rel_path = os.path.relpath(path, project_root)
-            print(f"DEBUG: Corrected '{file_ref}' to '{rel_path}'")
+            debug_print(f"Corrected '{file_ref}' to '{rel_path}'")
             return rel_path
 
     # If no match found, try fuzzy matching on common misspellings
@@ -183,7 +162,7 @@ def _correct_file_reference(file_ref: str, filename_to_path: dict, project_root:
         if corrected_name in filename_to_path:
             full_path = filename_to_path[corrected_name]
             rel_path = os.path.relpath(full_path, project_root)
-            print(f"DEBUG: Corrected '{file_ref}' to '{rel_path}' using fuzzy matching")
+            debug_print(f"Corrected '{file_ref}' to '{rel_path}' using fuzzy matching")
             return rel_path
 
     # Return original if no correction found

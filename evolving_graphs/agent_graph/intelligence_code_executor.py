@@ -14,9 +14,11 @@ from .agent_backpack_formatter import format_backpack_context  # Context formatt
 from .intelligence_llm_service import chat_llm  # Standardized LLM service
 from .agent_config import config  # Configuration for prompts and settings
 from .intelligence_backpack_utils import (chunk_backpack_by_size, load_architectural_rules,
-                                          _build_prompt_sections, BACKPACK_CHUNK_SIZE_LIMIT,
-                                          MAX_ITERATION_LIMIT)  # Backpack processing utilities
+                                           _build_prompt_sections, BACKPACK_CHUNK_SIZE_LIMIT,
+                                           MAX_ITERATION_LIMIT)  # Backpack processing utilities
 from .intelligence_execution_utils import execute_code  # Safe code execution utilities
+from .llm_utils import make_llm_call_with_fallback  # LLM response processing utilities
+from .debug_utils import debug_print  # Debug logging utilities
 
 def get_executor_response(goal, current_code=None, backpack=None, plan=None, working_dir=None):
     """Generates the next code improvement using the Executor prompt with self-improvement."""
@@ -152,17 +154,17 @@ Generate ONLY complete Python code as output (no explanations, no markdown, no c
 
         # Get response for this chunk
         try:
-            print(f"DEBUG: Making LLM call for iteration {i+1}")
-            response = chat_llm(prompt)
-            print(f"DEBUG: LLM call successful for iteration {i+1}, response length: {len(response)}")
+            debug_print(f"Making LLM call for iteration {i+1}")
+            response = make_llm_call_with_fallback(prompt)
+            debug_print(f"LLM call successful for iteration {i+1}, response length: {len(response)}")
         except Exception as e:
-            print(f"DEBUG: LLM call failed for iteration {i+1}: {str(e)}")
+            debug_print(f"LLM call failed for iteration {i+1}: {str(e)}")
             # Continue with previous accumulated code on failure
             continue
 
         # Use response as accumulated code
         accumulated_code = response
-        print(f"DEBUG: Accumulated code updated, new length: {len(accumulated_code)}")
+        debug_print(f"Accumulated code updated, new length: {len(accumulated_code)}")
 
-    print(f"DEBUG: Iterative processing completed, final code length: {len(accumulated_code)}")
+    debug_print(f"Iterative processing completed, final code length: {len(accumulated_code)}")
     return accumulated_code
