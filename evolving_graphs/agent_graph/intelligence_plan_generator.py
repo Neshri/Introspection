@@ -92,6 +92,7 @@ class Planner:
         
         Returns the updated PlanGraph that includes Reasonable ActionNodes and ObjectiveNodes.
         """
+        planner_memory_ids = []
         # Step 1: Input Validation
         if not isinstance(plan, PlanGraph):
             raise ValueError("plan must be a PlanGraph instance")
@@ -139,4 +140,4 @@ class Planner:
                 # Additional verification logic could be added here (e.g., validate command structure)
 
         # Step 5: Finalization
-        return plan
+        return plan, planner_memory_ids

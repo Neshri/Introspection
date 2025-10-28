@@ -112,21 +112,34 @@ class PipelineRunner:
             
             plan = PlanGraph(self.main_goal)
 
-            planner_result = self.planner.update_plan(self.main_goal, backpack, plan, architecture_summary)
-            plan = planner_result
-            plan.display()
-            used_memory_ids_this_turn.extend(planner_memory_ids)
-            while scout_query:
-                backpack, scout_memory_ids, query_answer = self.scout.query(self.main_goal, scout_query)    
-                planner_result = self.planner.update_plan(self.main_goal, backpack, plan, architecture_summary, query_answer)
-                planner_memory_ids, scout_query = planner_result
-                pass
+            
+            
 
+            role_list = ["scout", "planner", "editor"]
+            role_id = 1
 
+            while role_id < 3:
+                if role_id < 0:
+                    raise Exception(f"The scout gave up :(")
+                if role_list[role_id] == "scout":
+                    self.scout.query(self.main_goal, plan)
+                    role_id += 1
+                    continue
+                if role_list[role_id] == "planner":
+                    planner_result = self.planner.update_plan(self.main_goal, backpack, plan, architecture_summary)
+                    plan , planner_memory_ids = planner_result
+                    plan.display()
+                    used_memory_ids_this_turn.extend(planner_memory_ids)
+                    if plan.contains_task_for_role("scout"):
+                        role_id -= 1
+                    else:
+                        role_id += 1
+                    continue
+                if role_list[role_id] == "editor":
+                    role_id += 1
+                    continue
 
-
-
-
+            
 
 
 
