@@ -42,35 +42,60 @@ class Config:
     Be concise and focus on high-level strategy for this batch only.
     """
 
-    # Command-based Plan Building: Prompt for incremental plan construction using commands.
+    # Memory-Augmented Command-based Plan Building: Enhanced prompt with historical learning
     PLANNER_COMMAND_PROMPT_TEMPLATE = """
-    You are a software architect building a hierarchical plan incrementally using simple commands. You MUST follow strict hierarchical decomposition rules:
+    You are a software architect building a hierarchical plan incrementally using simple commands with MEMORY-AUGMENTED INTELLIGENCE to prevent unproductive loops and enable intelligent progression. You MUST follow strict hierarchical decomposition rules:
 
-    AVAILABLE COMMANDS:
+    PHASE-BASED COMMAND RESTRICTIONS (CRITICAL):
+    - OBJECTIVES PHASE: ONLY use ADD_OBJECTIVE, EDIT_OBJECTIVE, LIST, DONE commands
+    - ACTIONS PHASE: Use ALL commands including ADD_ACTION, EDIT_ACTION
+
+    AVAILABLE COMMANDS BY PHASE:
+    OBJECTIVES PHASE (current phase - decompose goals hierarchically):
     - ADD_OBJECTIVE <description> [-> <parent_id>]: Add a new objective node (defaults to root if no parent specified)
-    - ADD_ACTION <objective_id> <role> <description> [justification]: Add an action to an existing objective (ONLY when objectives reach sufficient specificity)
     - EDIT_OBJECTIVE <objective_id> <new_description>: Modify an existing objective's description
-    - EDIT_ACTION <action_id> <new_description> [new_justification]: Modify an existing action
     - LIST [objectives|actions|all]: Display current plan structure (defaults to all)
     - DONE: Signal that objective decomposition is complete and actions can now be added
 
-    HIERARCHICAL DECOMPOSITION RULES:
-    1. ONLY ALLOW ADD_OBJECTIVE commands until objectives reach sufficient specificity (targeting specific functions/files)
-    2. Objectives must reference specific functions, classes, imports, or files before allowing actions
-    3. Only allow ADD_ACTION after objectives become specific (e.g., "Update import section in agent_core.py" not "implement changes")
-    4. ADD_ACTION is ONLY permitted at leaf nodes with specific, actionable objectives
-    5. Use DONE to signal completion of objective decomposition phase
-    6. Continue decomposing recursively until DONE is issued or sufficient granularity reached
+    ACTIONS PHASE (unlocked after DONE command):
+    - ADD_ACTION <objective_id> <role> <description> [justification]: Add an action to an existing objective (ONLY when objectives reach sufficient specificity)
+    - EDIT_ACTION <action_id> <new_description> [new_justification]: Modify an existing action
+    - All OBJECTIVES PHASE commands above
 
-    CRITICAL INSTRUCTIONS:
-    - Use commands to build the plan step by step
+    MEMORY-AUGMENTED INTELLIGENCE SYSTEM:
+    This planning system learns from past successful/failed sessions to prevent repetitive loops and guide intelligent progression:
+
+    LOOP PREVENTION:
+    - AVOID excessive LIST commands (memory shows this leads to stuck states)
+    - BREAK repetitive patterns by choosing different command types
+    - Use DONE when memory indicates high confidence for completion
+    - Prioritize ADD_OBJECTIVE over repeated LIST when stuck
+
+    INTELLIGENT PROGRESSION SIGNALS:
+    - Memory-guided suggestions appear when system detects potential loops
+    - DONE confidence scores help determine when decomposition is complete
+    - Historical patterns show successful command sequences leading to completion
+
+    HIERARCHICAL DECOMPOSITION RULES (ENHANCED):
+    1. OBJECTIVES PHASE: ONLY ADD_OBJECTIVE, EDIT_OBJECTIVE, LIST, DONE - NO ADD_ACTION ALLOWED
+    2. STAY IN OBJECTIVES PHASE until DONE command (memory shows premature action attempts fail)
+    3. Only transition to ACTIONS PHASE after DONE (memory confirms this pattern leads to success)
+    4. In ACTIONS PHASE: ADD_ACTION is ONLY permitted at leaf nodes with specific, actionable objectives
+    5. Objectives must reference specific functions, classes, imports, or files before allowing actions
+    6. Only allow ADD_ACTION after objectives become specific (e.g., "Update import section in agent_core.py" not "implement changes")
+    7. Continue decomposing recursively until DONE is issued or sufficient granularity reached
+
+    CRITICAL MEMORY-ENHANCED INSTRUCTIONS:
+    - Use commands to build the plan step by step with historical intelligence
     - Each response should contain ONE command only
     - Commands should be on a single line
-    - Focus on the most immediate next step toward the goal
+    - Focus on the most immediate next step toward the goal using memory patterns
     - Make objectives specific (target particular functions/classes/files)
     - Make actions executable (clear, specific commands)
     - Use proper file references from the codebase context
     - Enforce hierarchical decomposition: objectives first, then actions at leaves
+    - BREAK LOOPS: If you notice repetitive commands, choose a different approach
+    - TRUST MEMORY: When memory provides guidance, consider it strongly
 
     Current Plan Context:
     {plan_context}
@@ -164,5 +189,71 @@ class Config:
     Consider: syntax correctness, logical accuracy, efficiency, and goal achievement.
     Your output must be ONLY a single integer score from 1 to 10.
     """
+
+    # Code-Aware Planning Prompts with AST/Dependency Integration
+    CODE_AWARE_PLANNER_PROMPT_TEMPLATE = """
+You are an expert software architect using CODE-AWARE INTELLIGENCE with AST analysis and dependency graphs.
+
+PHASED PLANNING ARCHITECTURE:
+1. ANALYSIS PHASE: Build comprehensive code understanding using AST analysis
+2. DESIGN PHASE: Create grounded architectural objectives
+3. IMPLEMENTATION PHASE: Generate specific, validated implementation steps
+4. TESTING PHASE: Add validation and testing requirements
+
+CODE CONTEXT INTEGRATION:
+- Function definitions: {function_definitions}
+- Class hierarchies: {class_definitions}
+- Dependency relationships: {dependency_graph}
+- Import mappings: {import_map}
+
+VALIDATION REQUIREMENTS:
+- ALL objectives must reference specific files/functions/classes from AST analysis
+- Commands must be grounded in actual codebase structure
+- Dependencies must be validated before action generation
+- File references must match existing files in dependency graph
+
+HIERARCHICAL DECOMPOSITION PREVENTION:
+- Avoid over-decomposition - stop when objectives become specific enough
+- Use DONE command when sufficient granularity reached
+- Prioritize concrete file/function/class references over abstract goals
+
+AVAILABLE COMMANDS:
+- ADD_OBJECTIVE <description>: Add specific, file-referenced objective
+- ADD_ACTION <objective_id> <role> <description>: Add concrete action to specific objective
+- EDIT_OBJECTIVE <id> <description>: Refine objective with more precision
+- LIST: Show current plan state
+- DONE: Complete current objective decomposition
+
+Current Plan Context:
+{plan_context}
+
+Primary Goal: "{goal}"
+
+Codebase Context (AST-enriched):
+{code_context}
+
+What is the single most important command to execute next? Respond with ONLY the command, no explanations.
+"""
+
+    CODE_AWARE_VALIDATION_PROMPT_TEMPLATE = """
+VALIDATE PLAN COMPONENT AGAINST CODE REALITY:
+
+Component: {component_description}
+Code Context: {code_context}
+AST Analysis: {ast_analysis}
+
+Validation Criteria:
+1. File references exist in codebase
+2. Functions/classes mentioned are defined
+3. Dependencies are available
+4. Syntax is valid
+5. Architectural patterns are followed
+
+Confidence Score (0.0-1.0): [SCORE]
+Issues Found: [LIST]
+Recommendations: [LIST]
+
+Output JSON format only.
+"""
 
 config = Config()

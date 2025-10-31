@@ -67,33 +67,24 @@ def _unfold_objective_command_based(objective_id: str, main_goal: str, backpack:
         import re
         command_match = re.match(r'(\w+)\s*(.*)', command_text, re.IGNORECASE)
         if not command_match:
-            print(f"DEBUG: Invalid command format, skipping")
+            print(f"DEBUG: Invalid command format: '{command_text}' - skipping")
             continue
 
         command_name = command_match.group(1).upper()
+        print(f"DEBUG: Parsed command name: '{command_name}' (phase: {current_phase})")
 
         # Enforce hierarchical decomposition rules
         if current_phase == "objectives":
             # Only allow ADD_OBJECTIVE, EDIT_OBJECTIVE, LIST, DONE in objectives phase
             if command_name not in ['ADD_OBJECTIVE', 'EDIT_OBJECTIVE', 'LIST', 'DONE']:
                 print(f"DEBUG: Invalid command '{command_name}' in objectives phase, only ADD_OBJECTIVE, EDIT_OBJECTIVE, LIST, DONE allowed")
+                print(f"DEBUG: LLM attempted invalid command: '{command_text}' - skipping and continuing in objectives phase")
                 continue
-            # Check if objective is specific enough for actions
+            # Check if objective is specific enough for actions - but ADD_ACTION should not be allowed in objectives phase
             if command_name == 'ADD_ACTION':
-                current_obj = plan.get_node(objective_id)
-                if not is_specific_objective(current_obj.description):
-                    print(f"DEBUG: Objective '{current_obj.description}' not specific enough for actions, adding ADD_OBJECTIVE instead")
-                    # Force ADD_OBJECTIVE by refining the current objective
-                    refined_descriptions = refine_objective(current_obj.description, parent_context_str, main_goal, code_context)
-                    if refined_descriptions:
-                        new_obj = plan.add_objective(refined_descriptions[0], objective_id)
-                        print(f"DEBUG: Added refined objective: '{new_obj.description}'")
-                        continue
-                    else:
-                        continue
-                else:
-                    # Objective is specific, allow ADD_ACTION
-                    current_phase = "actions"
+                print(f"DEBUG: ADD_ACTION command received in objectives phase - this should not happen as ADD_ACTION is not allowed in objectives phase")
+                # This indicates a bug in the validation logic above
+                continue
         elif current_phase == "actions":
             # In actions phase, allow all commands
             pass

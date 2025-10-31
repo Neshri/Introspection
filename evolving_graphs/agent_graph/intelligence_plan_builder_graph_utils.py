@@ -3,15 +3,41 @@ from .task_planner_graph import PlanGraph, ObjectiveNode, ActionNode, STATUS_PEN
 from .intelligence_plan_builder_graph_validation_utils import _verify_graph_acyclicity
 from .intelligence_plan_builder_graph_unfolding_utils import _unfold_objective_command_based
 from .intelligence_plan_builder_graph_context_utils import _generate_plan_context
+from .intelligence_memory_augmented_planner_utils import memory_augmented_update_plan
+from .intelligence_code_aware_planner import code_aware_planner
 
 
-def update_plan(main_goal: str, backpack: list[dict], plan: PlanGraph, codebase_summary: str, query_answer: str="") -> tuple[PlanGraph, list]:
+def update_plan(main_goal: str, backpack: list[dict], plan: PlanGraph, codebase_summary: str, query_answer: str="", use_memory_augmentation: bool = True, use_code_awareness: bool = True) -> tuple[PlanGraph, list]:
     """
-    Updates the existing plan using command-based incremental building.
-    The LLM is given simple commands (ADD_OBJECTIVE, ADD_ACTION, EDIT_OBJECTIVE, EDIT_ACTION, LIST)
-    to navigate and modify the plan graph step by step.
+    Updates the existing plan using advanced planning architectures.
 
-    Returns the updated PlanGraph and a list of planner memory IDs with full LLM response logging.
+    Planning options:
+    - use_code_awareness=True: Use AST-integrated code-aware planning (recommended for code tasks)
+    - use_memory_augmentation=True: Use historical pattern learning to prevent loops
+    - Fallback: Original command-based planning
+
+    Returns the updated PlanGraph and a list of planner insights/memory IDs.
+    """
+    # Default to code-aware planning for code tasks, memory augmentation as fallback
+    if use_code_awareness:
+        print("DEBUG: Using production-ready code-aware planner with AST integration and structured phases")
+        try:
+            return code_aware_planner.plan_with_code_awareness(main_goal, backpack, plan, codebase_summary)
+        except Exception as e:
+            print(f"DEBUG: Code-aware planner failed ({e}), falling back to memory-augmented planner")
+            return memory_augmented_update_plan(main_goal, backpack, plan, codebase_summary, query_answer)
+    elif use_memory_augmentation:
+        print("DEBUG: Using memory-augmented planner with historical learning")
+        return memory_augmented_update_plan(main_goal, backpack, plan, codebase_summary, query_answer)
+    else:
+        # Fallback to original implementation
+        print("DEBUG: Using original command-based planner")
+        return _update_plan_original(main_goal, backpack, plan, codebase_summary, query_answer)
+
+
+def _update_plan_original(main_goal: str, backpack: list[dict], plan: PlanGraph, codebase_summary: str, query_answer: str="") -> tuple[PlanGraph, list]:
+    """
+    Original update_plan implementation (preserved for backward compatibility).
     """
     planner_memory_ids = []
     llm_responses = []  # Store all LLM responses for logging
