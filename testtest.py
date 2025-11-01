@@ -1,54 +1,30 @@
 def process_glimmer_string(input_string):
-    """
-    Processes a string of digits according to the glimmer rule.
-
-    Args:
-        input_string: A string containing only digits.
-
-    Returns:
-        A string representing the transformed digits, or an error message if the input is invalid.
-    """
-
-    # Input Validation
-    if not isinstance(input_string, str):
-        return "Error: Input must be a string."
-
-    if not all(char.isdigit() for char in input_string):
-        return "Error: Input string must contain only digits."
-
-    n = len(input_string)
-    output_string = ""
-
+    # Step 1: Define helper functions
     def is_prime(num):
-        """Checks if a number is prime."""
-        if num <= 1:
+        if num < 2:
             return False
-        for i in range(2, int(num**0.5) + 1):
+        for i in range(2, int(num ** 0.5) + 1):
             if num % i == 0:
                 return False
         return True
 
-    for i in range(n):
-        current_digit = int(input_string[i])
+    # Step 2: Initialize variables
+    digits = [int(digit) for digit in input_string]
+    output_digits = []
 
-        if is_prime(i):
-            # Growth Rule
-            if i == 0:
-                left_neighbor = 0
-            else:
-                left_neighbor = int(input_string[i - 1])
-
-            new_digit = (current_digit + left_neighbor) % 10
+    # Step 3: Iterate through each index and apply the corresponding rule
+    for index, current_digit in enumerate(digits):
+        if is_prime(index):
+            left_neighbor_value = 0 if index == 0 else digits[index - 1]
+            new_digit = (current_digit + left_neighbor_value) % 10
         else:
-            # Decay Rule
-            if i == n - 1:
-                right_neighbor = 0
-            else:
-                right_neighbor = int(input_string[i + 1])
+            right_neighbor_value = 0 if index == len(digits) - 1 else digits[index + 1]
+            new_digit = (current_digit - right_neighbor_value + 10) % 10
 
-            new_digit = (current_digit - right_neighbor + 10) % 10
+        output_digits.append(new_digit)
 
-        output_string += str(new_digit)
+    # Step 4: Convert the list of digits back to a string
+    output_string = "".join(str(digit) for digit in output_digits)
 
     return output_string
 

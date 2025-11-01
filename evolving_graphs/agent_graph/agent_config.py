@@ -5,7 +5,7 @@
 #
 
 class Config:
-    MODEL = 'gemma3:4b-it-qat'
+    MODEL = 'granite4:3b'
     # Context limit for a single request to avoid overloading the LLM.
     CONTEXT_LIMIT = 2048
 

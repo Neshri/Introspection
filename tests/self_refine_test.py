@@ -4,7 +4,7 @@ import ast
 import re
 
 # --- CONFIGURATION and PROBLEM DESCRIPTION ---
-MODEL = 'gemma3:12b-it-qat' 
+MODEL = 'granite4:3b' 
 MAX_REFINEMENT_LOOPS = 5
 problem_description = """
 Write a Python function called `process_glimmer_string` that takes a string of
