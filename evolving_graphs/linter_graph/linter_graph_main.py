@@ -17,16 +17,16 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 
-from linter_rules_recovery import check_architectural_recovery  # To diagnose and resolve architectural contradictions.
-from linter_rules_importcomments import check_import_comments  # To validate explanatory comments on imports.
-from linter_rules_importcompliance import check_imports_compliance  # To ensure imports comply with flat architecture rules.
-from linter_rules_duplication import check_duplication  # To detect potential code duplication.
-from linter_rules_filesize import check_file_sizes  # To enforce file size limits.
-from linter_rules_compliance import check_final_compliance  # To perform final compliance check on modified files.
-from linter_rules_initfiles import check_init_files  # To check empty __init__.py files.
-from linter_rules_entrypoints import check_entry_points  # To check designated entry points.
-from linter_rules_orchestrator import check_orchestrator_pattern  # To check orchestrator pattern and linear data flow.
-from linter_rules_crossgraph import check_cross_graph_imports  # To check cross-graph imports and relative paths.
+from .linter_rules_recovery import check_architectural_recovery  # To diagnose and resolve architectural contradictions.
+from .linter_rules_importcomments import check_import_comments  # To validate explanatory comments on imports.
+from .linter_rules_importcompliance import check_imports_compliance  # To ensure imports comply with flat architecture rules.
+from .linter_rules_duplication import check_duplication  # To detect potential code duplication.
+from .linter_rules_filesize import check_file_sizes  # To enforce file size limits.
+from .linter_rules_compliance import check_final_compliance  # To perform final compliance check on modified files.
+from .linter_rules_initfiles import check_init_files  # To check empty __init__.py files.
+from .linter_rules_entrypoints import check_entry_points  # To check designated entry points.
+from .linter_rules_orchestrator import check_orchestrator_pattern  # To check orchestrator pattern and linear data flow.
+from .linter_rules_crossgraph import check_cross_graph_imports  # To check cross-graph imports and relative paths.
 
 
 def find_project_root():

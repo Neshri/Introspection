@@ -1,4 +1,4 @@
-memory_db/
+chroma_db/
 candidates/
 .vscode
 # Byte-compiled / optimized / DLL files

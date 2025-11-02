@@ -1,20 +1,30 @@
-#
-# agent_graph_main.py (The Root)
-# This is the main entry point for the agent graph. Its only responsibility is to
-# start the agent's primary process.
-#
-# It uses the following modules:
-# - agent_core: Agent class for goal-setting and management with run loop.
-#
+import argparse
+import os
+from .agent_core import CrawlerAgent
 
-import argparse  # Standard library for command-line argument parsing
-
-from evolving_graphs.agent_graph.agent_core import Agent # To access the Agent class for goal-setting and management.
+def main(goal: str, target_folder: str) -> str:
+    # Find the root of the graph
+    for root, dirs, files in os.walk(target_folder):
+        for file in files:
+            if file.endswith("_main.py"):
+                target_root = os.path.join(root, file)
+    if not target_root:
+        raise FileNotFoundError(f"No file ending with _main.py found in {target_folder}")
+    
+    # Initialize the agent
+    agent = CrawlerAgent(goal, target_root)
+    # Run the agent
+    agent.run()
+    # TODO: Implement the rest of the function
+    return f"Agent run completed for goal: {goal}"
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run the Agent with a specified goal.")
-    parser.add_argument("--goal", required=True, help="The goal string for the agent to pursue.")
+    parser = argparse.ArgumentParser(description="")
+    parser.add_argument("--goal", required=True, help="The objective string.")
+    parser.add_argument("--target_folder", required=True, help="The absolute path to the target folder.")
     args = parser.parse_args()
-    
-    agent = Agent(goal_string=args.goal)
-    agent.run_with_agent()
+    goal = args.goal
+    target_folder = args.target_folder
+
+    result = main(goal, target_folder)
+    print(result)
