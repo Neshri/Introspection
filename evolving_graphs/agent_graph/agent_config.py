@@ -5,7 +5,7 @@
 #
 
 class Config:
-    MODEL = 'granite4:3b'
+    MODEL = 'granite4:tiny-h'
     # Context limit for a single request to avoid overloading the LLM.
     CONTEXT_LIMIT = 2048
 

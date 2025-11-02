@@ -293,6 +293,38 @@ class PlanningMemoryInterface:
         avg_confidence = total_score / len(done_patterns['documents']) / 100.0
 
         return min(avg_confidence, 0.9)  # Cap at 90%
+    def store_planning_pattern(self, goal_pattern: str, successful_approach: Dict[str, Any]) -> Optional[str]:
+        """
+        Store a successful planning pattern for future use.
+
+        Args:
+            goal_pattern: The goal that was successfully planned for
+            successful_approach: Dictionary containing details about the successful approach
+
+        Returns:
+            Memory ID if stored successfully, None otherwise
+        """
+        try:
+            pattern_data = {
+                "goal_pattern": goal_pattern,
+                "successful_approach": successful_approach,
+                "timestamp": time.time(),
+                "pattern_type": "planning_success"
+            }
+
+            memory_id = self.memory_interface.add_memory(
+                content=json.dumps(pattern_data),
+                current_turn=self.current_turn,
+                memory_type="planning_success_pattern",
+                creator_role="code_aware_planner",
+                initial_score=80.0
+            )
+            return memory_id
+        except Exception as e:
+            # Log error but don't raise - memory storage should be non-blocking
+            print(f"Failed to store planning pattern: {e}")
+            return None
+
 
     def update_turn(self, new_turn: int):
         """Update the current turn counter for memory management."""

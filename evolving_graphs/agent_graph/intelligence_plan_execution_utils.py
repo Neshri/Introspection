@@ -46,8 +46,13 @@ def refine_objective(objective_description: str, parent_context: str, main_goal:
             descriptions = [obj.get("description", "") for obj in refined_objectives if isinstance(obj, dict)]
             print(f"DEBUG: Successfully refined into {len(descriptions)} specific objectives")
             return descriptions
+        elif isinstance(refined_objectives, dict):
+            # Handle case where LLM returns a single objective dict instead of list
+            description = refined_objectives.get("description", objective_description)
+            print(f"DEBUG: LLM returned single objective dict, using description: {description}")
+            return [description]
         else:
-            print("DEBUG: LLM returned non-list response, using fallback")
+            print(f"DEBUG: LLM returned unexpected type {type(refined_objectives)}, using fallback")
             return [objective_description]  # Fallback
     except json.JSONDecodeError as e:
         print(f"DEBUG: Failed to parse refinement JSON: {e}")

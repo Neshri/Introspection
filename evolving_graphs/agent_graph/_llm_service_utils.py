@@ -1,11 +1,10 @@
 #
-# intelligence_llm_service.py (LLM Service Role)
-# This module provides standardized LLM chat functionality with consistent error handling.
+# _llm_service_utils.py (LLM Service Utilities)
+# Utility functions for LLM chat operations with error handling and response processing.
 #
 
 import logging
-import ollama
-from .agent_config import config  # Configuration settings for LLM model and API
+from .agent_config import config  # Configuration for LLM model settings
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +27,8 @@ def chat_llm(prompt, model=None):
         model = config.MODEL
 
     try:
+        import ollama  # Import here to avoid circular imports
+
         # The 'options' parameter is added here to prevent the LLM from
         # cutting off its response prematurely.
         response = ollama.chat(

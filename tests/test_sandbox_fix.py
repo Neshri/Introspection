@@ -36,15 +36,15 @@ def test_sandbox_creation():
 
             # Try to create the sandbox
             manager.create_directory_sandbox()
-            print(f"Candidate dir: {manager.candidate_dir}")
+            print(f"Candidate dir: {manager.directory_sandbox.candidate_dir}")
 
             # Check if candidate was created correctly
-            candidate_exists = os.path.exists(manager.candidate_dir)
+            candidate_exists = os.path.exists(manager.directory_sandbox.candidate_dir)
             print(f"Candidate exists: {candidate_exists}")
 
             if candidate_exists:
                 # Check if it contains the expected structure
-                candidate_agent = os.path.join(manager.candidate_dir, 'agent_graph')
+                candidate_agent = os.path.join(manager.directory_sandbox.candidate_dir, 'agent_graph')
                 has_agent_graph = os.path.exists(candidate_agent)
                 print(f"Has agent_graph in candidate: {has_agent_graph}")
 

@@ -1,7 +1,6 @@
 #
-# intelligence_code_aware_planner.py (Code-Aware Planner with AST Integration)
-# This module implements a production-ready code agent architecture with structured
-# planning phases, AST analysis, dependency graphs, and reality validation.
+# intelligence_code_aware_planner.py (Code-Aware Planner)
+# Core code-aware planning logic with structured phases and LLM integration.
 #
 
 from typing import Dict, List, Optional, Tuple, Any, Union, Literal
@@ -11,584 +10,496 @@ from dataclasses import dataclass, field
 from enum import Enum
 from collections import defaultdict
 
-from .task_planner_graph import PlanGraph, ObjectiveNode, ActionNode, STATUS_PENDING, STATUS_COMPLETED
-from .intelligence_plan_memory_interface import planning_memory_interface
-from .intelligence_plan_command_utils import command_parser
-from .intelligence_llm_service import chat_llm
-from .intelligence_plan_builder_graph_context_utils import _generate_plan_context
-from .intelligence_plan_objective_utils import is_specific_objective
-from .intelligence_plan_execution_utils import refine_objective
-from .agent_config import config
-
-
-class HierarchicalDecompositionPreventer:
-    """Prevents excessive hierarchical decomposition in planning."""
-
-    def __init__(self):
-        self.decomposition_depth: Dict[str, int] = {}
-        self.specificity_scores: Dict[str, float] = {}
-
-    def should_decompose_further(self, objective_description: str, current_depth: int = 0) -> bool:
-        """Determine if an objective should be decomposed further."""
-        # Calculate specificity score
-        specificity = self._calculate_specificity(objective_description)
-
-        # Check depth limits
-        max_depth = 3  # Prevent going too deep
-        if current_depth >= max_depth:
-            return False
-
-        # Check if objective is specific enough
-        min_specificity = 0.7
-        return specificity < min_specificity
-
-    def _calculate_specificity(self, description: str) -> float:
-        """Calculate how specific an objective description is."""
-        score = 0.0
-
-        # Specific file references
-        if any(ext in description.lower() for ext in ['.py', '.json', '.md', '.txt']):
-            score += 0.3
-
-        # Function/class references
-        if any(keyword in description.lower() for keyword in ['function', 'class', 'method', 'def ', 'class ']):
-            score += 0.2
-
-        # Specific action verbs
-        if any(verb in description.lower() for verb in ['update', 'modify', 'add', 'remove', 'change', 'implement']):
-            score += 0.2
-
-        # Concrete details
-        if len(description.split()) > 5:  # Longer descriptions tend to be more specific
-            score += 0.2
-
-        # AST-level specificity (functions, imports, etc.)
-        if any(term in description.lower() for term in ['import', 'from ', 'def ', 'class ', 'return', 'self.']):
-            score += 0.1
-
-        return min(1.0, score)
-
-    def track_objective(self, objective_id: str, description: str, depth: int):
-        """Track an objective for decomposition analysis."""
-        self.decomposition_depth[objective_id] = depth
-        self.specificity_scores[objective_id] = self._calculate_specificity(description)
-
-
-class PlanningPhase(Enum):
-    """Structured planning phases for code-aware planning."""
-    ANALYSIS = "analysis"
-    DESIGN = "design"
-    IMPLEMENTATION = "implementation"
-    TESTING = "testing"
-
-
-@dataclass
-class CodeContext:
-    """Enhanced code context with AST and dependency information."""
-    ast_nodes: Dict[str, ast.AST] = field(default_factory=dict)
-    dependency_graph: Dict[str, List[str]] = field(default_factory=dict)
-    import_map: Dict[str, str] = field(default_factory=dict)
-    function_definitions: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    class_definitions: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    file_sizes: Dict[str, int] = field(default_factory=dict)
-
-
-@dataclass
-class PlanValidation:
-    """Reality validation results for plan components."""
-    is_grounded: bool = False
-    missing_dependencies: List[str] = field(default_factory=list)
-    syntax_errors: List[str] = field(default_factory=list)
-    architectural_issues: List[str] = field(default_factory=list)
-    confidence_score: float = 0.0
-
-
-class ASTAnalyzer:
-    """Analyzes Python code using AST for code understanding."""
-
-    def __init__(self):
-        self.analyzed_files: Dict[str, ast.Module] = {}
-
-    def analyze_file(self, file_path: str, content: str) -> Dict[str, Any]:
-        """
-        Analyze a Python file using AST and extract structural information.
-        """
-        try:
-            tree = ast.parse(content, filename=file_path)
-            self.analyzed_files[file_path] = tree
-
-            analysis = {
-                'functions': {},
-                'classes': {},
-                'imports': [],
-                'globals': [],
-                'complexity': self._calculate_complexity(tree)
-            }
-
-            for node in ast.walk(tree):
-                if isinstance(node, ast.FunctionDef):
-                    analysis['functions'][node.name] = {
-                        'line': node.lineno,
-                        'args': [arg.arg for arg in node.args.args],
-                        'docstring': ast.get_docstring(node)
-                    }
-                elif isinstance(node, ast.ClassDef):
-                    analysis['classes'][node.name] = {
-                        'line': node.lineno,
-                        'bases': [base.id if hasattr(base, 'id') else str(base) for base in node.bases],
-                        'methods': [n.name for n in node.body if isinstance(n, ast.FunctionDef)],
-                        'docstring': ast.get_docstring(node)
-                    }
-                elif isinstance(node, (ast.Import, ast.ImportFrom)):
-                    if isinstance(node, ast.Import):
-                        analysis['imports'].extend(n.name for n in node.names)
-                    else:
-                        module = node.module or ''
-                        analysis['imports'].extend(f"{module}.{n.name}" if module else n.name for n in node.names)
-
-            return analysis
-        except SyntaxError as e:
-            return {'syntax_error': str(e), 'functions': {}, 'classes': {}, 'imports': []}
-
-    def _calculate_complexity(self, tree: ast.Module) -> int:
-        """Calculate cyclomatic complexity approximation."""
-        complexity = 1  # Base complexity
-        for node in ast.walk(tree):
-            if isinstance(node, (ast.If, ast.For, ast.While, ast.With, ast.Try)):
-                complexity += 1
-            elif isinstance(node, ast.BoolOp) and isinstance(node.op, ast.And):
-                complexity += len(node.values) - 1
-        return complexity
-
-    def find_dependencies(self, file_path: str) -> List[str]:
-        """Extract file dependencies from imports."""
-        if file_path not in self.analyzed_files:
-            return []
-
-        dependencies = []
-        for node in ast.walk(self.analyzed_files[file_path]):
-            if isinstance(node, ast.Import):
-                for name in node.names:
-                    dependencies.append(name.name.split('.')[0])
-            elif isinstance(node, ast.ImportFrom):
-                if node.module:
-                    dependencies.append(node.module.split('.')[0])
-
-        return list(set(dependencies))
-
-    def validate_code_structure(self, code: str) -> Dict[str, Any]:
-        """Validate code structure and return issues."""
-        try:
-            tree = ast.parse(code)
-            return {'valid': True, 'issues': []}
-        except SyntaxError as e:
-            return {'valid': False, 'issues': [f"Syntax error: {e}"]}
-
-
-class DependencyGraph:
-    """Analyzes codebase dependencies for better planning."""
-
-    def __init__(self, ast_analyzer: ASTAnalyzer):
-        self.ast_analyzer = ast_analyzer
-        self.graph: Dict[str, List[str]] = {}
-        self.reverse_graph: Dict[str, List[str]] = {}
-
-    def build_from_backpack(self, backpack: List[Dict[str, Any]]) -> None:
-        """Build dependency graph from backpack files."""
-        self.graph.clear()
-        self.reverse_graph.clear()
-
-        for item in backpack:
-            file_path = item.get('file_path', '')
-            content = item.get('content', '')
-
-            if file_path.endswith('.py'):
-                analysis = self.ast_analyzer.analyze_file(file_path, content)
-                dependencies = self.ast_analyzer.find_dependencies(file_path)
-
-                self.graph[file_path] = dependencies
-
-                # Build reverse graph
-                for dep in dependencies:
-                    if dep not in self.reverse_graph:
-                        self.reverse_graph[dep] = []
-                    self.reverse_graph[dep].append(file_path)
-
-    def get_affected_files(self, target_file: str) -> List[str]:
-        """Get files that would be affected by changes to target_file."""
-        affected = set()
-
-        # Files that depend on target_file
-        if target_file in self.reverse_graph:
-            affected.update(self.reverse_graph[target_file])
-
-        # Recursive dependencies
-        to_check = list(affected)
-        checked = set([target_file])
-
-        while to_check:
-            current = to_check.pop()
-            if current in checked:
-                continue
-            checked.add(current)
-
-            if current in self.reverse_graph:
-                new_affected = set(self.reverse_graph[current]) - checked
-                affected.update(new_affected)
-                to_check.extend(new_affected)
-
-        return list(affected)
-
-    def get_dependency_order(self) -> List[str]:
-        """Get files in dependency order (leaves first)."""
-        # Simple topological sort
-        visited = set()
-        order = []
-
-        def visit(node):
-            if node in visited:
-                return
-            visited.add(node)
-            if node in self.graph:
-                for dep in self.graph[node]:
-                    visit(dep)
-            order.append(node)
-
-        for node in self.graph:
-            visit(node)
-
-        return order
-
-
-class RealityValidator:
-    """Validates plans against actual codebase reality."""
-
-    def __init__(self, ast_analyzer: ASTAnalyzer, dependency_graph: DependencyGraph):
-        self.ast_analyzer = ast_analyzer
-        self.dependency_graph = dependency_graph
-
-    def validate_objective(self, objective: str, backpack: List[Dict[str, Any]]) -> PlanValidation:
-        """Validate an objective against codebase reality."""
-        validation = PlanValidation()
-
-        # Check if objective mentions specific files/functions that exist
-        mentioned_files = self._extract_file_references(objective)
-        validation.is_grounded = self._validate_file_references(mentioned_files, backpack)
-
-        # Check for missing dependencies
-        required_deps = self._extract_dependencies_from_objective(objective)
-        validation.missing_dependencies = self._find_missing_dependencies(required_deps, backpack)
-
-        # Calculate confidence score
-        validation.confidence_score = self._calculate_confidence(validation)
-
-        return validation
-
-    def _extract_file_references(self, text: str) -> List[str]:
-        """Extract file references from text."""
-        import re
-        # Match patterns like file.py, path/to/file.py, etc.
-        file_pattern = r'\b[\w/\\]+\.py\b'
-        return re.findall(file_pattern, text)
-
-    def _validate_file_references(self, files: List[str], backpack: List[Dict[str, Any]]) -> bool:
-        """Check if referenced files exist in backpack."""
-        backpack_files = {item.get('file_path', '').split('/')[-1] for item in backpack}
-        return all(file.split('/')[-1] in backpack_files for file in files)
-
-    def _extract_dependencies_from_objective(self, objective: str) -> List[str]:
-        """Extract potential dependencies from objective description."""
-        # Simple keyword extraction for common libraries
-        common_libs = ['os', 'sys', 'json', 'ast', 'typing', 'dataclasses', 'enum']
-        found = []
-        for lib in common_libs:
-            if lib in objective.lower():
-                found.append(lib)
-        return found
-
-    def _find_missing_dependencies(self, required_deps: List[str], backpack: List[Dict[str, Any]]) -> List[str]:
-        """Find dependencies not available in current context."""
-        # For now, assume all dependencies are missing if not in backpack
-        # In a real implementation, this would check import statements
-        return required_deps
-
-    def _calculate_confidence(self, validation: PlanValidation) -> float:
-        """Calculate overall confidence score."""
-        score = 1.0
-        if not validation.is_grounded:
-            score *= 0.5
-        if validation.missing_dependencies:
-            score *= 0.7
-        return max(0.0, min(1.0, score))
+from .task_planner_graph import PlanGraph, ObjectiveNode, ActionNode, STATUS_PENDING, STATUS_COMPLETED  # Graph-based task planning structure
+from .intelligence_plan_memory_interface import planning_memory_interface  # Memory integration for learning
+from .intelligence_plan_command_utils import command_parser  # Command parsing and execution
+from ._llm_service_utils import chat_llm  # Standardized LLM chat functionality
+from .intelligence_plan_builder_graph_context_utils import _generate_plan_context  # Plan context generation
+from .intelligence_plan_objective_utils import is_specific_objective  # Objective specificity checking
+from .intelligence_plan_execution_utils import refine_objective  # Objective refinement logic
+from .agent_config import config  # Configuration settings
+from .code_context_analyzer import CodeContext, code_context, ast_analyzer  # AST analysis and code context management
+from .dependency_graph_builder import DependencyGraph  # Dependency graph analysis
+from .reality_validator import RealityValidator, PlanValidation  # Plan validation against reality
 
 
 class CodeAwarePlanner:
-    """Production-ready code agent with structured planning and AST integration."""
+    """
+    Production-ready code-aware planner that integrates AST analysis, dependency graphs,
+    and LLM-driven planning for intelligent code modification strategies.
+
+    Features:
+    - AST-integrated code understanding
+    - Dependency-aware planning
+    - LLM-driven objective refinement
+    - Memory-augmented learning
+    - Reality validation
+    - Structured error handling and logging
+    """
 
     def __init__(self):
-        self.ast_analyzer = ASTAnalyzer()
-        self.dependency_graph = DependencyGraph(self.ast_analyzer)
-        self.reality_validator = RealityValidator(self.ast_analyzer, self.dependency_graph)
-        self.decomposition_preventer = HierarchicalDecompositionPreventer()
-        self.current_phase = PlanningPhase.ANALYSIS
-        self.code_context = CodeContext()
+        """Initialize the code-aware planner with required components."""
+        import logging
+        self.logger = logging.getLogger(__name__)
 
-    def plan_with_code_awareness(self, main_goal: str, backpack: List[Dict[str, Any]],
-                               plan: PlanGraph, codebase_summary: str = "") -> Tuple[PlanGraph, List[str]]:
+        # Initialize core analyzers
+        self.code_context = code_context
+        self.ast_analyzer = ast_analyzer
+        self.dependency_graph = DependencyGraph(ast_analyzer)
+        self.reality_validator = RealityValidator(ast_analyzer, self.dependency_graph)
+
+        # Initialize memory interface for learning
+        self.memory_interface = planning_memory_interface
+
+        self.logger.info("CodeAwarePlanner initialized successfully")
+
+    def plan_with_code_awareness(
+        self,
+        main_goal: str,
+        backpack: List[Dict[str, Any]],
+        plan: PlanGraph,
+        codebase_summary: str
+    ) -> Tuple[PlanGraph, List[Any]]:
         """
-        Main planning method with code-aware structured phases.
+        Generate a code-aware plan using AST analysis and LLM integration.
 
-        Returns updated PlanGraph and list of planning insights.
+        Args:
+            main_goal: The primary programming objective
+            backpack: List of context items providing additional information
+            plan: The current PlanGraph to enhance with code awareness
+            codebase_summary: Summary of the codebase architecture
+
+        Returns:
+            Tuple of (updated PlanGraph, list of planner insights/memory IDs)
         """
-        insights = []
+        try:
+            self.logger.info(f"Starting code-aware planning for goal: {main_goal[:100]}...")
 
-        # Phase 1: Analysis - Build code understanding
-        insights.extend(self._analysis_phase(main_goal, backpack, plan, codebase_summary))
+            # Phase 1: Validate inputs and initialize planning context
+            self._validate_inputs(main_goal, backpack, plan, codebase_summary)
 
-        # Phase 2: Design - Create high-level architecture
-        insights.extend(self._design_phase(main_goal, backpack, plan))
+            # Phase 2: Analyze codebase structure and dependencies
+            code_analysis = self._analyze_codebase_structure(codebase_summary, backpack)
 
-        # Phase 3: Implementation - Generate specific implementation steps
-        insights.extend(self._implementation_phase(main_goal, backpack, plan))
+            # Phase 3: Enhance plan with code-aware insights
+            enhanced_plan = self._enhance_plan_with_code_awareness(
+                plan, main_goal, code_analysis, backpack
+            )
 
-        # Phase 4: Testing - Add validation and testing steps
-        insights.extend(self._testing_phase(main_goal, backpack, plan))
+            # Phase 4: Validate plan against reality
+            validation_result = self._validate_plan_against_reality(enhanced_plan, main_goal, backpack)
+            if not validation_result.is_valid:
+                self.logger.warning(f"Plan validation issues: {validation_result.issues}")
+                enhanced_plan = self._repair_plan_validation_issues(
+                    enhanced_plan, validation_result, main_goal, code_analysis
+                )
 
-        return plan, insights
+            # Phase 5: Store learning insights for future planning
+            insights = self._generate_planner_insights(
+                main_goal, code_analysis, enhanced_plan, validation_result
+            )
 
-    def _analysis_phase(self, main_goal: str, backpack: List[Dict[str, Any]],
-                       plan: PlanGraph, codebase_summary: str) -> List[str]:
-        """Analysis phase: Build comprehensive code understanding."""
-        insights = ["=== ANALYSIS PHASE ==="]
+            # Phase 6: Final validation and return
+            enhanced_plan.validate_consistency()
+            self.logger.info(f"Code-aware planning completed. Plan has {len(enhanced_plan.nodes)} nodes")
 
-        # Build dependency graph and analyze code structure
-        self.dependency_graph.build_from_backpack(backpack)
+            return enhanced_plan, insights
 
-        # Analyze each file in backpack
-        for item in backpack:
-            file_path = item.get('file_path', '')
-            content = item.get('content', '')
+        except Exception as e:
+            self.logger.error(f"Code-aware planning failed: {str(e)}", exc_info=True)
+            # Return original plan as fallback
+            return plan, []
 
-            if file_path.endswith('.py'):
-                analysis = self.ast_analyzer.analyze_file(file_path, content)
-                file_size = len(content.split('\n'))
+    def _validate_inputs(
+        self,
+        main_goal: str,
+        backpack: List[Dict[str, Any]],
+        plan: PlanGraph,
+        codebase_summary: str
+    ) -> None:
+        """Validate all input parameters for planning."""
+        if not isinstance(main_goal, str) or not main_goal.strip():
+            raise ValueError("main_goal must be a non-empty string")
 
-                # Store in code context
-                self.code_context.ast_nodes[file_path] = self.ast_analyzer.analyzed_files.get(file_path)
-                self.code_context.function_definitions[file_path] = analysis.get('functions', {})
-                self.code_context.class_definitions[file_path] = analysis.get('classes', {})
-                self.code_context.file_sizes[file_path] = file_size
+        if not isinstance(backpack, list):
+            raise TypeError("backpack must be a list")
 
-                insights.append(f"Analyzed {file_path}: {len(analysis.get('functions', {}))} functions, "
-                              f"{len(analysis.get('classes', {}))} classes, {file_size} lines")
+        if not isinstance(plan, PlanGraph):
+            raise TypeError("plan must be a PlanGraph instance")
 
-        self.current_phase = PlanningPhase.DESIGN
-        insights.append("Analysis phase completed - code structure understood")
-        return insights
+        if not isinstance(codebase_summary, str):
+            raise TypeError("codebase_summary must be a string")
 
-    def _design_phase(self, main_goal: str, backpack: List[Dict[str, Any]], plan: PlanGraph) -> List[str]:
-        """Design phase: Create high-level architecture and objectives."""
-        insights = ["=== DESIGN PHASE ==="]
+        self.logger.debug("Input validation passed")
 
-        # Use LLM to generate design objectives based on code analysis
-        design_prompt = self._generate_design_phase_prompt(main_goal, backpack)
+    def _analyze_codebase_structure(
+        self,
+        codebase_summary: str,
+        backpack: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        Analyze the codebase structure using AST and dependency analysis.
 
-        # Generate initial design objectives
-        response = chat_llm(design_prompt)
-        design_objectives = self._parse_design_objectives(response)
+        Returns:
+            Dict containing analysis results including:
+            - key_files: Important files identified
+            - dependencies: Dependency relationships
+            - code_patterns: Recurring patterns
+            - risk_areas: Potential problem areas
+        """
+        self.logger.debug("Analyzing codebase structure")
 
-        # Add design objectives to plan
-        for obj_desc in design_objectives:
-            validation = self.reality_validator.validate_objective(obj_desc, backpack)
-            if validation.confidence_score > 0.6:
-                new_obj = plan.add_objective(obj_desc, plan.root_id)
-                insights.append(f"Added validated design objective: {obj_desc} (confidence: {validation.confidence_score:.2f})")
-            else:
-                insights.append(f"Rejected low-confidence objective: {obj_desc} (confidence: {validation.confidence_score:.2f})")
+        analysis = {
+            "key_files": [],
+            "dependencies": {},
+            "code_patterns": [],
+            "risk_areas": [],
+            "ast_insights": {}
+        }
 
-        self.current_phase = PlanningPhase.IMPLEMENTATION
-        insights.append("Design phase completed - high-level objectives established")
-        return insights
+        try:
+            # Extract file information from backpack
+            file_contexts = [item for item in backpack if isinstance(item, dict) and "file_path" in item]
 
-    def _implementation_phase(self, main_goal: str, backpack: List[Dict[str, Any]], plan: PlanGraph) -> List[str]:
-        """Implementation phase: Generate specific implementation steps."""
-        insights = ["=== IMPLEMENTATION PHASE ==="]
+            # Analyze key files for AST insights
+            for file_item in file_contexts[:10]:  # Limit to first 10 files for performance
+                file_path = file_item.get("file_path", "")
+                content = file_item.get("content", "")
+                if file_path.endswith(".py"):
+                    try:
+                        ast_insights = self.ast_analyzer.analyze_file(file_path, content)
+                        if ast_insights:
+                            analysis["ast_insights"][file_path] = ast_insights
+                            analysis["key_files"].append(file_path)
+                    except Exception as e:
+                        self.logger.warning(f"AST analysis failed for {file_path}: {e}")
 
-        # Process pending objectives with code-aware unfolding
-        pending_objectives = [node_id for node_id, node in plan.nodes.items()
-                            if isinstance(node, ObjectiveNode) and node.status == STATUS_PENDING and not node.children]
+            # Build dependency graph
+            try:
+                analysis["dependencies"] = self.dependency_graph.build_from_files(
+                    [f["file_path"] for f in file_contexts if f["file_path"].endswith(".py")]
+                )
+            except Exception as e:
+                self.logger.warning(f"Dependency analysis failed: {e}")
 
-        for obj_id in pending_objectives:
-            self._unfold_objective_code_aware(obj_id, main_goal, backpack, plan, insights)
+            # Identify patterns and risk areas from codebase summary
+            analysis["code_patterns"] = self._extract_code_patterns(codebase_summary)
+            analysis["risk_areas"] = self._identify_risk_areas(codebase_summary, analysis)
 
-        self.current_phase = PlanningPhase.TESTING
-        insights.append("Implementation phase completed - specific actions generated")
-        return insights
+        except Exception as e:
+            self.logger.warning(f"Codebase analysis encountered issues: {e}")
 
-    def _testing_phase(self, main_goal: str, backpack: List[Dict[str, Any]], plan: PlanGraph) -> List[str]:
-        """Testing phase: Add validation and testing steps."""
-        insights = ["=== TESTING PHASE ==="]
+        return analysis
 
-        # Add testing objectives for major components
-        testing_objectives = [
-            "Add syntax validation for all modified files",
-            "Verify import dependencies are satisfied",
-            "Test core functionality with unit tests",
-            "Validate architectural compliance"
-        ]
+    def _enhance_plan_with_code_awareness(
+        self,
+        plan: PlanGraph,
+        main_goal: str,
+        code_analysis: Dict[str, Any],
+        backpack: List[Dict[str, Any]]
+    ) -> PlanGraph:
+        """Enhance the plan with code-aware insights and refined objectives."""
 
-        for test_obj in testing_objectives:
-            validation = self.reality_validator.validate_objective(test_obj, backpack)
-            if validation.confidence_score > 0.7:
-                test_node = plan.add_objective(test_obj, plan.root_id)
-                # Add specific testing actions
-                plan.add_action(test_node.id, "code_validator",
-                              {"validation_type": "syntax", "target_files": "all_modified"},
-                              "Validate syntax of all changes")
-                insights.append(f"Added testing objective: {test_obj}")
+        self.logger.debug("Enhancing plan with code awareness")
 
-        insights.append("Testing phase completed - validation steps added")
-        return insights
+        # Update root objective if needed
+        root_node = plan.get_node(plan.root_id)
+        if root_node.description != main_goal:
+            root_node.description = main_goal
 
-    def _unfold_objective_code_aware(self, objective_id: str, main_goal: str,
-                                   backpack: List[Dict[str, Any]], plan: PlanGraph,
-                                   insights: List[str], current_depth: int = 0) -> bool:
-        """Unfold objective with code-aware intelligence and decomposition prevention."""
-        objective = plan.get_node(objective_id)
+        # Find pending objectives to refine
+        pending_objectives = plan.get_pending_objectives()
 
-        # Check if we should decompose further
-        if not self.decomposition_preventer.should_decompose_further(objective.description, current_depth):
-            insights.append(f"Prevented over-decomposition of objective: {objective.description}")
-            # Add direct action instead of decomposing further
-            plan.add_action(objective_id, "code_editor",
-                          {"description": f"Implement: {objective.description}"},
-                          "Direct implementation due to sufficient specificity")
-            plan.update_node_status(objective_id, STATUS_COMPLETED)
-            return True
+        for objective in pending_objectives:
+            try:
+                # Check if objective needs refinement
+                if not is_specific_objective(objective.description):
+                    self.logger.debug(f"Refining objective: {objective.description[:100]}...")
+                    refined_descriptions = self._refine_objective_with_code_awareness(
+                        objective, main_goal, code_analysis, backpack
+                    )
+                    self.logger.debug(f"Refined descriptions type: {type(refined_descriptions)}, value: {refined_descriptions}")
 
-        # Track this objective
-        self.decomposition_preventer.track_objective(objective_id, objective.description, current_depth)
+                    # Type checking: ensure refined_descriptions is a list
+                    if not isinstance(refined_descriptions, list):
+                        self.logger.error(f"refined_descriptions is not a list, type: {type(refined_descriptions)}, value: {refined_descriptions}. Using fallback.")
+                        refined_descriptions = [objective.description]
 
-        # Generate code-aware prompt
-        prompt = self._generate_code_aware_prompt(main_goal, plan, backpack, objective)
+                    if refined_descriptions:
+                        self.logger.debug(f"Processing {len(refined_descriptions)} refined descriptions")
+                        # Create sub-objectives for refined descriptions
+                        for desc in refined_descriptions:
+                            if isinstance(desc, str):
+                                new_obj = plan.add_objective(desc, objective.id)
+                                self.logger.debug(f"Added refined objective: {desc[:50]}...")
+                            else:
+                                self.logger.warning(f"Skipping non-string refined description: {desc} (type: {type(desc)})")
 
-        # Get LLM response
-        response = chat_llm(prompt)
+                        # Mark original objective as completed (broken down)
+                        plan.update_node_status(objective.id, STATUS_COMPLETED)
+                    else:
+                        self.logger.debug("No refined descriptions generated")
 
-        # Parse and execute commands with validation
-        success = self._execute_validated_commands(response, plan, objective_id, main_goal, insights)
+                else:
+                    # Objective is specific, add code-aware actions
+                    self._add_code_aware_actions(plan, objective, code_analysis)
 
-        plan.update_node_status(objective_id, STATUS_COMPLETED)
-        return success
+            except Exception as e:
+                self.logger.warning(f"Failed to enhance objective {objective.id}: {e}")
 
-    def _generate_design_phase_prompt(self, main_goal: str, backpack: List[Dict[str, Any]]) -> str:
-        """Generate prompt for design phase."""
-        # Summarize code structure
-        code_summary = []
-        total_files = len([f for f in self.code_context.ast_nodes.keys()])
-        total_functions = sum(len(funcs) for funcs in self.code_context.function_definitions.values())
-        total_classes = sum(len(classes) for classes in self.code_context.class_definitions.values())
+        return plan
 
-        code_summary.append(f"Codebase contains {total_files} Python files, {total_functions} functions, {total_classes} classes")
+    def _refine_objective_with_code_awareness(
+        self,
+        objective: ObjectiveNode,
+        main_goal: str,
+        code_analysis: Dict[str, Any],
+        backpack: List[Dict[str, Any]]
+    ) -> List[str]:
+        """Refine an objective using code awareness and LLM."""
 
-        return f"""{config.PLANNER_COMMAND_PROMPT_TEMPLATE}
+        # Build context for refinement
+        context_parts = []
 
-CODE-AWARE DESIGN PHASE:
-Current codebase structure: {chr(10).join(code_summary)}
+        # Add codebase insights
+        if code_analysis.get("ast_insights"):
+            context_parts.append("Code Structure Analysis:")
+            for file_path, insights in code_analysis["ast_insights"].items():
+                context_parts.append(f"- {file_path}: {insights.get('summary', 'N/A')}")
 
-PRIMARY GOAL: {main_goal}
+        # Add dependency information
+        if code_analysis.get("dependencies"):
+            context_parts.append("Key Dependencies:")
+            for dep_type, deps in code_analysis["dependencies"].items():
+                if deps:
+                    context_parts.append(f"- {dep_type}: {list(deps.keys())[:5]}...")  # Limit output
 
-INSTRUCTIONS:
-Generate 3-5 high-level design objectives that will guide the implementation.
-Each objective should be specific to the codebase structure and reference actual files/classes where possible.
-Focus on architectural decisions and major implementation steps.
+        # Add backpack context
+        relevant_backpack = [item for item in backpack if isinstance(item, dict)]
+        if relevant_backpack:
+            context_parts.append("Available Context:")
+            for item in relevant_backpack[:3]:  # Limit to first 3 items
+                context_parts.append(f"- {item.get('type', 'Unknown')}: {item.get('description', 'N/A')[:100]}...")
 
-Respond with design objectives, one per line.
-"""
+        full_context = "\n".join(context_parts)
 
-    def _generate_code_aware_prompt(self, main_goal: str, plan: PlanGraph,
-                                  backpack: List[Dict[str, Any]], objective: ObjectiveNode) -> str:
-        """Generate code-aware prompt for objective unfolding."""
-        plan_context = _generate_plan_context(plan)
+        # Use LLM to refine objective
+        try:
+            refined = refine_objective(
+                objective.description,
+                f"Main Goal: {main_goal}",
+                main_goal,
+                full_context
+            )
+            return refined if refined else [objective.description]
+        except Exception as e:
+            self.logger.warning(f"LLM refinement failed: {e}")
+            return [objective.description]
 
-        # Build comprehensive code context with AST integration
-        function_list = []
-        for file_path, functions in self.code_context.function_definitions.items():
-            function_list.extend([f"{file_path}::{func}" for func in functions.keys()])
+    def _add_code_aware_actions(
+        self,
+        plan: PlanGraph,
+        objective: ObjectiveNode,
+        code_analysis: Dict[str, Any]
+    ) -> None:
+        """Add code-aware actions to a specific objective."""
 
-        class_list = []
-        for file_path, classes in self.code_context.class_definitions.items():
-            class_list.extend([f"{file_path}::{cls}" for cls in classes.keys()])
-
-        # Dependency context
-        dep_context = []
-        for file_path, deps in self.dependency_graph.graph.items():
-            if deps:
-                dep_context.append(f"{file_path} depends on: {', '.join(deps[:3])}")
-
-        # Build the structured prompt
-        code_context_parts = [
-            f"Functions: {', '.join(function_list[:15])}",
-            f"Classes: {', '.join(class_list[:10])}",
-            f"Dependencies: {', '.join(dep_context[:5])}",
-        ]
-        code_context = "\n".join(code_context_parts)
-
-        return f"""{config.CODE_AWARE_PLANNER_PROMPT_TEMPLATE}
-
-CURRENT OBJECTIVE: {objective.description}
-
-CODE CONTEXT (AST-ENRICHED):
-{code_context}
-
-PLAN CONTEXT:
-{plan_context}
-
-PRIMARY GOAL: {main_goal}
-"""
-
-    def _parse_design_objectives(self, response: str) -> List[str]:
-        """Parse design objectives from LLM response."""
-        lines = [line.strip() for line in response.split('\n') if line.strip()]
-        return [line for line in lines if len(line) > 10][:5]  # Filter and limit
-
-    def _execute_validated_commands(self, response: str, plan: PlanGraph,
-                                  objective_id: str, main_goal: str, insights: List[str]) -> bool:
-        """Execute commands with reality validation."""
-        import re
-        command_match = re.match(r'(\w+)\s*(.*)', response.strip(), re.IGNORECASE)
-        if not command_match:
-            return False
-
-        command_name = command_match.group(1).upper()
-        command_params = command_match.group(2)
-
-        # Validate command against reality
-        if command_name == 'ADD_OBJECTIVE':
-            # Validate objective description
-            validation = self.reality_validator.validate_objective(command_params, [])
-            if validation.confidence_score < 0.5:
-                insights.append(f"Rejected ADD_OBJECTIVE due to low confidence: {validation.confidence_score}")
-                return False
-
-        success, message = command_parser.parse_and_execute(
-            response.strip(), plan, {'parent_id': objective_id, 'main_goal': main_goal}
+        # Generate action based on objective and code analysis
+        action_description = self._generate_code_aware_action_description(
+            objective.description, code_analysis
         )
 
-        if success:
-            insights.append(f"Executed validated command: {command_name}")
+        if action_description:
+            # Determine appropriate role based on action type
+            role = self._determine_action_role(objective.description, code_analysis)
 
-        return success
+            command = {
+                "description": action_description,
+                "code_awareness": True,
+                "analysis_used": list(code_analysis.keys())
+            }
+
+            plan.add_action(objective.id, role, command, f"Code-aware action for: {objective.description}")
+
+    def _generate_code_aware_action_description(
+        self,
+        objective_desc: str,
+        code_analysis: Dict[str, Any]
+    ) -> str:
+        """Generate a detailed action description with code awareness."""
+
+        # Use LLM to generate detailed action with code context
+        prompt = f"""Generate a specific, actionable description for the following programming objective:
+
+Objective: {objective_desc}
+
+Code Analysis Context:
+- Key Files: {code_analysis.get('key_files', [])}
+- Dependencies: {bool(code_analysis.get('dependencies'))}
+- Risk Areas: {code_analysis.get('risk_areas', [])}
+
+Provide a precise, technical description of what needs to be done, including:
+- Specific files to modify
+- Code elements to change
+- Dependencies to consider
+- Potential risks
+
+Response should be a clear, actionable description."""
+
+        try:
+            response = chat_llm(prompt)
+            return response.strip()
+        except Exception as e:
+            self.logger.warning(f"Failed to generate action description: {e}")
+            return f"Implement {objective_desc} with code awareness"
+
+    def _determine_action_role(
+        self,
+        objective_desc: str,
+        code_analysis: Dict[str, Any]
+    ) -> str:
+        """Determine the most appropriate agent role for the action."""
+
+        # Simple heuristic based on objective content
+        desc_lower = objective_desc.lower()
+
+        if any(word in desc_lower for word in ['analyze', 'explore', 'search', 'find']):
+            return 'scout'
+        elif any(word in desc_lower for word in ['edit', 'modify', 'update', 'change', 'implement']):
+            return 'code_editor'
+        else:
+            # Default to code_editor for most programming tasks
+            return 'code_editor'
+
+    def _repair_plan_validation_issues(
+        self,
+        plan: PlanGraph,
+        validation_result: PlanValidation,
+        main_goal: str,
+        code_analysis: Dict[str, Any]
+    ) -> PlanGraph:
+        """Attempt to repair plan validation issues."""
+
+        self.logger.debug("Attempting to repair plan validation issues")
+
+        # For now, log issues but return plan as-is
+        # Future enhancement: implement specific repair strategies
+        for issue in validation_result.issues:
+            self.logger.warning(f"Plan validation issue: {issue}")
+
+        return plan
+
+    def _validate_plan_against_reality(self, plan: PlanGraph, main_goal: str, backpack: List[Dict[str, Any]]) -> PlanValidation:
+        """Validate plan against reality using available validators."""
+        from .reality_validator import PlanValidation
+
+        # Get all objectives from the plan
+        objectives = [node.description for node in plan.nodes.values()
+                     if hasattr(node, 'description') and node.description != main_goal]
+
+        if objectives:
+            feasibility = self.reality_validator.validate_plan_feasibility(objectives, backpack)
+            validation = PlanValidation()
+            validation.is_valid = feasibility.get('feasible', True)
+            # Create mock issues from feasibility results
+            validation.issues = []
+            if feasibility.get('issues', {}).get('missing_dependencies'):
+                validation.issues.extend(f"Missing dependency: {dep}" for dep in feasibility['issues']['missing_dependencies'])
+            if feasibility.get('issues', {}).get('architectural_issues'):
+                validation.issues.extend(feasibility['issues']['architectural_issues'])
+            return validation
+        else:
+            # No objectives to validate, assume valid
+            validation = PlanValidation()
+            validation.is_valid = True
+            validation.issues = []
+            return validation
+
+    def _generate_planner_insights(
+        self,
+        main_goal: str,
+        code_analysis: Dict[str, Any],
+        plan: PlanGraph,
+        validation_result: PlanValidation
+    ) -> List[Any]:
+        """Generate insights for the memory system."""
+
+        insights = []
+
+        try:
+            # Store successful patterns in memory
+            if validation_result.is_valid:
+                self.logger.debug("Attempting to store planning pattern in memory...")
+                try:
+                    memory_id = self.memory_interface.store_planning_pattern(
+                        goal_pattern=main_goal,
+                        successful_approach={
+                            "code_analysis_used": bool(code_analysis.get("ast_insights")),
+                            "dependencies_analyzed": bool(code_analysis.get("dependencies")),
+                            "plan_nodes_created": len(plan.nodes)
+                        }
+                    )
+                    self.logger.debug(f"Successfully stored planning pattern with ID: {memory_id}")
+                    if memory_id:
+                        insights.append(memory_id)
+                except AttributeError as e:
+                    self.logger.warning(f"PlanningMemoryInterface missing store_planning_pattern method: {e}")
+                    # Try alternative method if available
+                    if hasattr(self.memory_interface, 'store_pattern'):
+                        self.logger.debug("Trying alternative store_pattern method...")
+                        alt_memory_id = self.memory_interface.store_pattern(
+                            goal_pattern=main_goal,
+                            successful_approach={
+                                "code_analysis_used": bool(code_analysis.get("ast_insights")),
+                                "dependencies_analyzed": bool(code_analysis.get("dependencies")),
+                                "plan_nodes_created": len(plan.nodes)
+                            }
+                        )
+                        if alt_memory_id:
+                            insights.append(alt_memory_id)
+                            self.logger.debug(f"Used alternative method to store pattern with ID: {alt_memory_id}")
+                    else:
+                        self.logger.warning("No alternative memory storage method available")
+                except Exception as e:
+                    self.logger.warning(f"Failed to store planning insights: {e}")
+                    # Continue without memory storage - this should not break the planning process
+
+        except Exception as e:
+            self.logger.warning(f"Failed to store planning insights: {e}")
+
+        return insights
+
+    def _extract_code_patterns(self, codebase_summary: str) -> List[str]:
+        """Extract recurring code patterns from codebase summary."""
+        patterns = []
+
+        # Simple pattern extraction - can be enhanced with more sophisticated analysis
+        if "agent" in codebase_summary.lower():
+            patterns.append("agent-based architecture")
+        if "graph" in codebase_summary.lower():
+            patterns.append("graph-based data structures")
+        if "llm" in codebase_summary.lower():
+            patterns.append("LLM integration patterns")
+
+        return patterns
+
+    def _identify_risk_areas(self, codebase_summary: str, analysis: Dict[str, Any]) -> List[str]:
+        """Identify potential risk areas in the codebase."""
+        risks = []
+
+        # Check for complex dependencies
+        deps = analysis.get("dependencies", {})
+        if deps and len(deps) > 10:
+            risks.append("High dependency complexity")
+
+        # Check for many AST issues
+        ast_insights = analysis.get("ast_insights", {})
+        issue_count = sum(len(insights.get("issues", [])) for insights in ast_insights.values())
+        if issue_count > 5:
+            risks.append("Multiple AST analysis issues detected")
+
+        return risks
 
 
-# Global instance for pipeline integration
+# Create singleton instance for module-level access
 code_aware_planner = CodeAwarePlanner()
-
-
-def code_aware_update_plan(main_goal: str, backpack: list[dict], plan: PlanGraph,
-                          codebase_summary: str = "") -> tuple[PlanGraph, list]:
-    """
-    Convenience function for code-aware planning integration.
-    Returns updated PlanGraph and list of planning insights.
-    """
-    return code_aware_planner.plan_with_code_awareness(main_goal, backpack, plan, codebase_summary)

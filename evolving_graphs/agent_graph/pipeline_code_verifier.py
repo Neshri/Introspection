@@ -183,6 +183,8 @@ class Verifier:
                 and if False, 'error' (str) with details of the failure.
         """
         print("Verifier is testing the new code...")
+        print(f"DEBUG: Code length: {len(str(proposed_code_change))} characters")
+        print(f"DEBUG: First 200 chars: {str(proposed_code_change)[:200]}")
 
         # Extract the new content from the proposed change
         if isinstance(proposed_code_change, dict):
@@ -190,44 +192,64 @@ class Verifier:
         else:
             new_content = proposed_code_change
 
+        print(f"DEBUG: Extracted content length: {len(new_content)} characters")
+        print(f"DEBUG: Content preview: {new_content[:300]}")
+
         # Step 1: Pre-validate basic syntax issues
+        print("DEBUG: Running pre-validation...")
         pre_validation_result = self.pre_validate_syntax(new_content)
         if not pre_validation_result['success']:
+            print(f"DEBUG: Pre-validation failed: {pre_validation_result['error']}")
             return pre_validation_result
 
         # Step 2: Check for Python syntax errors using ast.parse
+        print("DEBUG: Running AST syntax check...")
         try:
             ast.parse(new_content)
+            print("DEBUG: AST syntax check passed")
         except SyntaxError as e:
+            print(f"DEBUG: AST syntax error: {str(e)}")
             return {
                 'success': False,
                 'error': f'Syntax error in code: {str(e)}'
             }
 
         # Step 3: Check architectural rule compliance
+        print("DEBUG: Checking architecture rules...")
         architecture_result = self.check_architecture_rules(new_content)
         if not architecture_result['success']:
+            print(f"DEBUG: Architecture check failed: {architecture_result['error']}")
             return architecture_result
 
         # Step 4: Check if tests directory exists in working_dir and run pytest if it does
         tests_dir = os.path.join(self.working_dir, 'tests') if self.working_dir else 'tests'
+        print(f"DEBUG: Tests directory: {tests_dir}, exists: {os.path.isdir(tests_dir)}")
         if os.path.isdir(tests_dir):
             try:
                 # Run pytest in the candidate directory context
                 cwd_path = self.working_dir if self.working_dir else '.'
+                print(f"DEBUG: Running pytest in directory: {cwd_path}")
                 result = subprocess.run(['pytest'], capture_output=True, text=True, cwd=cwd_path)
+                print(f"DEBUG: Pytest return code: {result.returncode}")
                 if result.returncode != 0:
                     # Pytest failed, include stdout and stderr in error
                     error_details = result.stdout + '\n' + result.stderr
+                    print(f"DEBUG: Pytest failed with output length: {len(error_details)}")
+                    print(f"DEBUG: First 500 chars of error: {error_details[:500]}")
                     return {
                         'success': False,
                         'error': f'Tests failed: {error_details}'
                     }
+                else:
+                    print("DEBUG: All tests passed")
             except Exception as e:
+                print(f"DEBUG: Exception running tests: {str(e)}")
                 return {
                     'success': False,
                     'error': f'Error running tests: {str(e)}'
                 }
+        else:
+            print("DEBUG: No tests directory found, skipping test execution")
 
         # If all checks pass
         return {'success': True}

@@ -26,10 +26,24 @@ def query_memory_for_goal(memory: MemoryInterface, goal: str, current_turn: int,
     Returns:
         tuple: (used_memory_ids, memory_context)
     """
-    memory_results = memory.query_memory(goal, current_turn=current_turn, n_results=n_results)
-    used_memory_ids = memory_results['ids'][0] if memory_results['ids'] else []
-    memory_context = "\n".join(memory_results['documents'][0]) if memory_results['documents'] else ""
-    return used_memory_ids, memory_context
+    try:
+        memory_results = memory.query_memory(goal, current_turn=current_turn, n_results=n_results)
+        if memory_results is None:
+            return [], ""
+        ids = memory_results.get('ids')
+        if ids is None:
+            used_memory_ids = []
+        else:
+            used_memory_ids = ids[0] if ids else []
+        documents = memory_results.get('documents')
+        if documents is None:
+            memory_context = ""
+        else:
+            memory_context = "\n".join(documents[0]) if documents else ""
+        return used_memory_ids, memory_context
+    except Exception as e:
+        logging.error(f"Error querying memory for goal '{goal}': {e}")
+        return [], ""
 
 
 def extract_keywords_and_compute_relevance(keywords: list, code: str, depth: int, llm_response: dict = None) -> tuple[float, float]:
