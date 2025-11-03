@@ -4,3 +4,4 @@ requests
 chromadb
 tiktoken
 networkx
+libcst

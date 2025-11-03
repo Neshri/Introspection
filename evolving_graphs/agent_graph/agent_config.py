@@ -1,0 +1,2 @@
+DEFAULT_MODEL = "granite4:tiny-h"
+CONTEXT_LIMIT = 2048
