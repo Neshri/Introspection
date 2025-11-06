@@ -1,2 +1,2 @@
-DEFAULT_MODEL = "granite4:tiny-h"
+DEFAULT_MODEL = "granite4:3b"
 CONTEXT_LIMIT = 2048

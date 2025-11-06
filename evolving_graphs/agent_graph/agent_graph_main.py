@@ -3,6 +3,7 @@ import os
 from .agent_core import CrawlerAgent
 
 def main(goal: str, target_folder: str) -> str:
+    target_root = None
     # Find the root of the graph
     for root, dirs, files in os.walk(target_folder):
         for file in files:

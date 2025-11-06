@@ -2,6 +2,7 @@
 from .memory_core import ChromaMemory
 from .llm_util import chat_llm
 from .agent_config import DEFAULT_MODEL, CONTEXT_LIMIT
+from .agent_util import project_pulse
 
 class CrawlerAgent:
     def __init__(self, goal: str, target_root: str):
@@ -13,6 +14,9 @@ class CrawlerAgent:
     def run(self) -> str:
         # TODO: Implement the agent's logic here
         print(f"Running CrawlerAgent for goal: {self.goal} and target root: {self.target_root}")
+        project_map =  project_pulse(self.target_root)
+        for key, value in project_map.items():
+            print(f"File: {key}, Summary: {value}\n\n")
         current_turn = 0
         response = ""
         # Use for loop for now.
