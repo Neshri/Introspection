@@ -16,32 +16,38 @@ class CodeEntityVisitor(libcst.CSTVisitor):
         self.entities = {"functions": [], "classes": {}}
         self.current_context = []
 
-    def _analyze_function_body(self, node: libcst.FunctionDef) -> bool:
-        """Semantically checks if a function is unimplemented by analyzing its CST nodes."""
-        body = node.body
-        if isinstance(body, libcst.SimpleStatementSuite):
-            if len(body.body) == 1 and isinstance(body.body[0], libcst.Pass):
-                return True
-        
-        if isinstance(body, libcst.IndentedBlock):
-            statements = [stmt for stmt in body.body if not (isinstance(stmt, libcst.SimpleStatementLine) and isinstance(stmt.body[0], libcst.Expr))]
-            if not statements: return False # Only has a docstring
-
-            if len(statements) == 1:
-                statement = statements[0]
-                if isinstance(statement, libcst.Pass): return True
-                if isinstance(statement, libcst.Raise) and isinstance(statement.exc, libcst.Name) and statement.exc.value == "NotImplementedError":
-                    return True
-        return False
+    def visit_Import(self, node: libcst.Import) -> None:
+        """Handles statements like `import os` and `import libcst`."""
+        for alias in node.names:
+            # Use code_for_node to correctly handle complex imports like `import a.b.c`
+            module_name = libcst.Module([]).code_for_node(alias.name)
+            self.external_imports.add(module_name)
 
     def visit_ImportFrom(self, node: libcst.ImportFrom) -> None:
+        """Handles statements like `from .llm_util import chat_llm`."""
         if not node.relative:
-            if isinstance(node.module, libcst.Name): self.external_imports.add(node.module.value)
+            if node.module:
+                # Use code_for_node to correctly handle `from collections.abc import Sequence`
+                module_name = libcst.Module([]).code_for_node(node.module)
+                self.external_imports.add(module_name)
             return
+
+        # --- The rest of the function for relative imports remains the same ---
         level = len(node.relative); base_path = self.module_dir
         for _ in range(level - 1): base_path = os.path.dirname(base_path)
-        module_name = node.module.value if node.module else ""
-        imported_path_base = os.path.normpath(os.path.join(base_path, module_name.replace('.', os.sep)))
+        
+        module_name_parts = []
+        if node.module:
+            # Reconstruct the module path from parts if it's an attribute path
+            current = node.module
+            while isinstance(current, libcst.Attribute):
+                module_name_parts.insert(0, current.attr.value)
+                current = current.value
+            module_name_parts.insert(0, current.value)
+        
+        module_name_str = ".".join(module_name_parts)
+        imported_path_base = os.path.normpath(os.path.join(base_path, module_name_str.replace('.', os.sep)))
+        
         potential_file_path = f"{imported_path_base}.py"
         if potential_file_path in self.all_project_files:
             self.relative_imports.add(potential_file_path)
@@ -53,11 +59,38 @@ class CodeEntityVisitor(libcst.CSTVisitor):
                 if imported_file in self.all_project_files:
                     self.relative_imports.add(imported_file); self.import_map[name_node.name.value] = imported_file
 
-    # --- FINAL, CORRECTED TRAVERSAL LOGIC ---
+        
+    def _analyze_function_body(self, node: libcst.FunctionDef) -> bool:
+        """Semantically checks if a function is unimplemented by analyzing its CST nodes."""
+        body = node.body
+        if isinstance(body, libcst.SimpleStatementSuite):
+            if len(body.body) == 1 and isinstance(body.body[0], libcst.Pass):
+                return True
+        
+        if isinstance(body, libcst.IndentedBlock):
+            statements = [
+                stmt for stmt in body.body 
+                if not (isinstance(stmt, libcst.SimpleStatementLine) and isinstance(stmt.body[0], libcst.Expr))
+            ]
+
+            if not statements: return False
+
+            if len(statements) == 1:
+                statement_line = statements[0]
+                
+                if isinstance(statement_line, libcst.SimpleStatementLine) and len(statement_line.body) == 1:
+                    actual_statement = statement_line.body[0]
+
+                    if isinstance(actual_statement, libcst.Pass): return True
+                    
+                    if isinstance(actual_statement, libcst.Raise):
+                        if isinstance(actual_statement.exc, libcst.Name) and actual_statement.exc.value == "NotImplementedError":
+                            return True
+        return False
+
     def visit_ClassDef(self, node: libcst.ClassDef) -> None:
         self.current_context.append(node.name.value)
         self.entities["classes"][node.name.value] = []
-        # The visitor will automatically visit methods inside the class body.
 
     def leave_ClassDef(self, original_node: libcst.ClassDef) -> None:
         self.current_context.pop()
@@ -71,8 +104,15 @@ class CodeEntityVisitor(libcst.CSTVisitor):
         
         is_unimplemented = self._analyze_function_body(node)
         
-        # Check if the parent context is a class
         is_method = len(self.current_context) > 1 and self.current_context[-2] in self.entities["classes"]
+
+        # Do not add dunder methods to the public API
+        if node.name.value.startswith('__') and node.name.value.endswith('__'):
+            return
+
+        # Do not add private methods to the public API
+        if is_method and node.name.value.startswith('_'):
+             return
 
         if is_method:
             class_name = self.current_context[-2]
@@ -80,7 +120,7 @@ class CodeEntityVisitor(libcst.CSTVisitor):
                 "signature": signature,
                 "is_unimplemented": is_unimplemented
             })
-        else: # It's a top-level function
+        else:
             self.entities["functions"].append({
                 "signature": signature,
                 "is_unimplemented": is_unimplemented
@@ -88,7 +128,6 @@ class CodeEntityVisitor(libcst.CSTVisitor):
     
     def leave_FunctionDef(self, original_node: libcst.FunctionDef) -> None:
         self.current_context.pop()
-    # --- END OF FIX ---
         
     def _record_interaction(self, symbol: str):
         if symbol in self.import_map:
