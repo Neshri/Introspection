@@ -16,7 +16,7 @@ class CrawlerAgent:
         print(f"Running CrawlerAgent for goal: {self.goal} and target root: {self.target_root}")
         project_map =  project_pulse(self.target_root)
         for key, value in project_map.items():
-            print(f"File: {key}, Summary: {value}\n\n")
+            print(f"File: {key}, Context data: {value}\n\n")
         current_turn = 0
         response = ""
         # Use for loop for now.

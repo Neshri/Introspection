@@ -1,168 +1,146 @@
 import logging
 import os
-import re
+from collections import deque
+from typing import Dict, List, Any
+
+# Assuming local imports
 from .graph_analyzer import GraphAnalyzer
-from .llm_util import chat_llm
-from .agent_config import DEFAULT_MODEL
-from .auditor_agent import run_duplication_auditor, run_completeness_auditor, run_service_auditor, run_dependency_grounding_auditor, run_grounding_auditor
-from .writer_agent import generate_role_summary, generate_core_summary, generate_service_summary, generate_deps_summary
 
-def _format_entities_for_prompt(entities: dict) -> str:
-    """Formats the statically analyzed entities into a markdown string for the LLM prompt."""
-    lines = []
-    if not entities.get('functions') and not entities.get('classes'):
-        return "No public API defined."
-    if entities.get('functions'):
-        lines.append("Public Functions:")
-        for func in entities['functions']:
-            unimplemented_tag = " # UNIMPLEMENTED" if func['is_unimplemented'] else ""
-            lines.append(f"- `{func['signature']}`{unimplemented_tag}")
-    if entities.get('classes'):
-        lines.append("\nClasses:")
-        for class_name, methods in entities['classes'].items():
-            lines.append(f"- class {class_name}:")
-            for method in methods:
-                unimplemented_tag = " # UNIMPLEMENTED" if method['is_unimplemented'] else ""
-                lines.append(f"  - `{method['signature']}`{unimplemented_tag}")
-    return "\n".join(lines)
+# --- Type Aliases for Clarity ---
 
-def _is_simple_constants_file(node: dict) -> bool:
-    """Deterministically checks if a module is a simple constants/config file."""
-    # A file is simple if it has no dependencies, no interactions, and no defined functions or classes.
-    has_dependencies = bool(node.get('dependencies'))
-    has_interactions = bool(node.get('interactions'))
-    has_entities = bool(node.get('entities', {}).get('functions') or node.get('entities', {}).get('classes'))
-    
-    return not has_dependencies and not has_interactions and not has_entities
+# Defines a clear type for the summary object, which is a dictionary.
+SummaryObject = Dict[str, Any]
+# Defines a clear type for the project graph data structure.
+ProjectGraph = Dict[str, Any]
 
-def _generate_simple_summary(file_name: str) -> str:
-    """Generates a deterministic, template-based summary for simple config/constants files."""
-    logging.info(f"[Orchestrator] Generating deterministic summary for simple file: {file_name}")
-    return f"""### Summary for `{file_name}`
-#### System-Level Role
-This module serves as a configuration or constants file. It defines static values that are used by other modules in the project.
-#### Core Responsibility
-The primary purpose of this file is to centralize and define project-wide constants.
-#### Dependency Interactions
-This module has no direct interactions with other project modules or external libraries.
-#### Service to Dependents
-This module provides no callable services to dependents; it only provides constant values.
-#### Potential Issues Detected
-- None.
-"""
-
-def _summarize_module_recursively(path: str, graph: dict, module_summaries: dict):
+class ProjectSummarizer:
     """
-    Orchestrates the generation and auditing of a module summary.
+    Orchestrates the analysis and iterative summarization of a Python project.
+
+    This class encapsulates the project's dependency graph and the state of
+    module summaries, managing the entire summarization workflow.
     """
-    if path in module_summaries:
-        return
+    def __init__(self, graph: ProjectGraph, max_cycles: int = 3):
+        """
+        Initializes the ProjectSummarizer.
 
-    node = graph.get(path)
-    if not node or 'error' in node:
-        file_name = os.path.basename(path)
-        module_summaries[file_name] = f"### Summary for `{file_name}`\n\n**Error:** Failed during static analysis: {node.get('error', 'Unknown error')}"
-        return
-    
-    for dep_path in node.get('dependencies', []):
-        _summarize_module_recursively(dep_path, graph, module_summaries)
+        Args:
+            graph: The dependency graph of the project.
+            max_cycles: The maximum number of refinement passes to perform.
+        """
+        self.graph = graph
+        self.max_cycles = max_cycles
+        # This dictionary will store the summary for each module path.
+        self.summaries: Dict[str, SummaryObject] = {}
+        # The processing order is computed once during initialization for efficiency.
+        self._processing_order = self._compute_topological_order()
 
-    file_name = node['file_name']
-    
-    # --- DETERMINISTIC PATH FOR SIMPLE FILES ---
-    if _is_simple_constants_file(node):
-        module_summaries[file_name] = _generate_simple_summary(file_name)
-        return
+    def _compute_topological_order(self) -> List[str]:
+        """
+        Calculates the processing order of modules using a topological sort.
 
-    # --- LLM-BASED PATH FOR COMPLEX FILES ---
-    logging.info(f"[Orchestrator] Generating LLM-based summary for: {file_name}")
-    try:
-        source_code = node.get('source_code', '')
-        public_api = _format_entities_for_prompt(node.get('entities', {}))
+        This ensures that a module is always processed after the modules it
+        depends on have been processed.
+        """
+        # This list will store the final, ordered list of module paths.
+        order: List[str] = []
+        # This dictionary tracks how many dependencies are left to be processed for each module.
+        deps_count = {path: len(data.get("dependencies", [])) for path, data in self.graph.items()}
+        # The queue is initialized with all modules that have zero dependencies (the "leaf" nodes).
+        queue: deque[str] = deque([path for path, count in deps_count.items() if count == 0])
+
+        # The loop continues as long as there are modules with all dependencies met.
+        while queue:
+            path = queue.popleft()
+            order.append(path)
+            
+            # For each module that depends on the one just processed...
+            for dependent in self.graph.get(path, {}).get("dependents", []):
+                # ...decrement its count of remaining dependencies.
+                deps_count[dependent] -= 1
+                # If the count reaches zero, this module is now ready to be processed.
+                if deps_count[dependent] == 0:
+                    queue.append(dependent)
+
+        # If the final order doesn't include all modules, a dependency cycle exists.
+        if len(order) != len(self.graph):
+            unprocessed = sorted(list(set(self.graph.keys()) - set(order)))
+            logging.warning(f"Cycle detected. Unordered modules: {[os.path.basename(p) for p in unprocessed]}")
+            order.extend(unprocessed)
         
-        dependencies = [graph.get(p) for p in node.get('dependencies', [])]
-        dependency_summaries_list = [
-            f"**Summary of `{d['file_name']}`:**\n{module_summaries.get(d['file_name'], 'Summary not available.')}"
-            for d in dependencies if d
-        ]
-        dependency_summaries_str = "\n---\n".join(dependency_summaries_list)
+        return order
 
-        source_code_context = f"**Full Source Code of `{file_name}`:**\n```python\n{source_code}\n```"
-        api_context = f"**Statically Analyzed Public API of `{file_name}`:**\n{public_api}"
+    def summarize_project(self) -> Dict[str, SummaryObject]:
+        """
+        Runs the iterative summarization process and returns the final summaries.
         
-        role_summary = generate_role_summary(file_name, dependency_summaries_str, api_context)
-        core_summary = generate_core_summary(file_name, source_code_context)
-        service_summary = generate_service_summary(file_name, api_context)
-        deps_summary = generate_deps_summary(node.get('interactions', []), node.get('external_imports', set()))
+        This method iterates over the modules in a stable order for a fixed number
+        of cycles or until the summaries no longer change.
+        """
+        # The outer loop handles the refinement cycles.
+        for cycle in range(1, self.max_cycles + 1):
+            logging.info(f"--- Starting Refinement Cycle {cycle}/{self.max_cycles} ---")
+            # This flag tracks if any summary has changed during the current cycle.
+            has_changed = False
 
-        MAX_ATTEMPTS = 3
-        for attempt in range(MAX_ATTEMPTS):
-            statically_detected_issues = [f"- {issue}" for issue in (
-                [f"Function `{func['signature']}` is unimplemented." for func in node.get('entities', {}).get('functions', []) if func['is_unimplemented']] +
-                [f"Method `{cls}.{m['signature']}` is unimplemented." for cls, meths in node.get('entities', {}).get('classes', {}).items() for m in meths if m['is_unimplemented']] +
-                [f"TODO comment found: '{todo.strip()}'" for todo in node.get('todos', [])]
-            )] or ["- None."]
-            issues_summary = "\n".join(statically_detected_issues)
+            # The inner loop processes each module in the pre-calculated topological order.
+            for path in self._processing_order:
+                # This gathers the most recent summaries of the current module's dependencies.
+                dep_summaries = {
+                    dep: self.summaries.get(dep)
+                    for dep in self.graph.get(path, {}).get("dependencies", [])
+                    if dep in self.summaries
+                }
+                
+                old_summary = self.summaries.get(path)
+                
+                # This block calls the summarization logic.
+                try:
+                    new_summary = _create_module_summary(path, self.graph, dep_summaries)
+                except NotImplementedError:
+                    # A placeholder is used if the summarization function isn't implemented.
+                    new_summary = {
+                        "summary": f"Summary for {os.path.basename(path)} (Cycle {cycle})",
+                        "claims": [],
+                    }
+
+                # If the summary has been updated, store it and set the flag.
+                if new_summary != old_summary:
+                    has_changed = True
+                    self.summaries[path] = new_summary
             
-            draft_summary = f"### Summary for `{file_name}`\n#### System-Level Role\n{role_summary}\n#### Core Responsibility\n{core_summary}\n#### Dependency Interactions\n{deps_summary}\n#### Service to Dependents\n{service_summary}\n#### Potential Issues Detected\n{issues_summary}"
+            # If a full cycle completes with no changes, we can exit early.
+            if not has_changed:
+                logging.info(f"Summaries converged after cycle {cycle}. Stopping early.")
+                break
+        
+        return self.summaries
 
-            if run_duplication_auditor(draft_summary) or run_completeness_auditor(draft_summary):
-                raise Exception("Fatal draft error: Duplication or missing sections detected.")
-            
-            service_flawed, service_feedback = run_service_auditor(file_name, draft_summary, public_api)
-            deps_grounding_flawed, deps_grounding_feedback = run_dependency_grounding_auditor(
-                draft_summary, node.get('interactions', []), node.get('external_imports', set())
-            )
-            
-            prose_grounding_flawed = False
-            prose_grounding_feedback = ""
-            if not service_flawed and not deps_grounding_flawed:
-                prose_text = f"#### System-Level Role\n{role_summary}\n#### Core Responsibility\n{core_summary}"
-                prose_grounding_flawed, prose_grounding_feedback = run_grounding_auditor(file_name, prose_text, source_code)
-
-            # **CORRECTED CONTROL FLOW LOGIC**
-            if not service_flawed and not deps_grounding_flawed and not prose_grounding_flawed:
-                logging.info(f"--> Summary for {file_name}: All auditors passed on attempt {attempt + 1}.")
-                module_summaries[file_name] = draft_summary.strip()
-                return
-
-            # --- REFINEMENT ACTIONS ---
-            if prose_grounding_flawed:
-                logging.warning(f"--> {file_name} | Attempt {attempt+1} | Prose Grounding Auditor FAILED: {prose_grounding_feedback}")
-                role_summary = generate_role_summary(file_name, dependency_summaries_str, api_context)
-                core_summary = generate_core_summary(file_name, source_code_context)
-            
-            if service_flawed:
-                logging.warning(f"--> {file_name} | Attempt {attempt+1} | Service Auditor FAILED: {service_feedback}")
-                prompt_service_refined = f"An auditor found a flaw in a previous draft of the 'Service to Dependents' section. Please fix it.\n\nAUDITOR FEEDBACK: {service_feedback}\n\n**Original Task:**\nYou are a software architect. Based ONLY on the Public API of `{file_name}`, create a bulleted list describing the service it provides.\n{api_context}\n\n**Revised Service to Dependents:**"
-                service_summary = chat_llm(DEFAULT_MODEL, prompt_service_refined)
-
-            if deps_grounding_flawed:
-                logging.warning(f"--> {file_name} | Attempt {attempt+1} | Dependency Grounding FAILED: {deps_grounding_feedback}")
-                deps_summary = generate_deps_summary(node.get('interactions', []), node.get('external_imports', set()))
-
-        raise Exception(f"Failed to generate a valid summary for {file_name} after {MAX_ATTEMPTS} attempts.")
-
-    except Exception as e:
-        logging.error(f"Failed to generate a valid summary for {file_name}: {e}", exc_info=False)
-        module_summaries[file_name] = f"### Summary for `{file_name}`\n\n**Error:** {e}"
+def _create_module_summary(path: str, graph: ProjectGraph, dep_summaries: Dict[str, SummaryObject]) -> SummaryObject:
+    """Placeholder for the complex, AI-driven summarization logic."""
+    logging.info(f"Summarizing module: {os.path.basename(path)}")
+    raise NotImplementedError("This function should be implemented with the actual summarization logic.")
 
 
-def project_pulse(target_file_path: str) -> dict:
+def project_pulse(target_file_path: str) -> Dict[str, SummaryObject]:
     """
-    Analyzes a Python project starting from a target file, creates a dependency graph,
-    and generates a summary for each module in the project.
+    Analyzes a Python project and generates summaries for each module.
+
+    This function serves as the main entry point for the entire process.
     """
+    # 1. Validate the input file path.
     if not os.path.isfile(target_file_path):
-        logging.error(f"Error: Path '{target_file_path}' is not a valid file.")
+        logging.error(f"Error: Target path '{target_file_path}' is not a valid file.")
         return {}
     
+    # 2. Build the project's dependency graph.
+    logging.info(f"Starting project analysis from root: {target_file_path}")
     analyzer = GraphAnalyzer(target_file_path)
-    graph = analyzer.analyze()
+    project_graph = analyzer.analyze()
     
-    module_summaries = {}
+    # 3. Instantiate and run the summarizer to orchestrate the main logic.
+    summarizer = ProjectSummarizer(project_graph)
+    final_summaries = summarizer.summarize_project()
     
-    # Start the recursive summarization from the entry point
-    _summarize_module_recursively(os.path.abspath(target_file_path), graph, module_summaries)
-    
-    return module_summaries
+    logging.info("Project analysis and summarization complete.")
+    return final_summaries

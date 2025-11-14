@@ -5,19 +5,27 @@ import re
 
 def _parse_auditor_response(response: str) -> tuple[bool, str]:
     """Parses the LLM's audit response to find a verdict and reasoning."""
-    logging.info(f"--- AUDITOR RAW RESPONSE ---\n{response}\n--------------------------")
-    verdict_match = re.search(r'verdict:\s*(PASS|FAIL)', response, re.IGNORECASE)
+    # logging.info(f"--- AUDITOR RAW RESPONSE ---\n{response}\n--------------------------")
     
-    verdict_found = verdict_match and verdict_match.group(1).upper() == "FAIL"
+    # It finds "verdict", then any characters non-greedily (.*?), then PASS or FAIL.
+    # re.DOTALL ensures that '.' matches newlines.
+    verdict_match = re.search(r'verdict.*?(PASS|FAIL)', response, re.IGNORECASE | re.DOTALL)
+    
+    is_fail = verdict_match is not None and verdict_match.group(1).upper() == "FAIL"
     
     reasoning = response
     if verdict_match:
         reasoning = response[:verdict_match.start()].strip()
 
-    if not reasoning or reasoning.lower().startswith("reasoning"):
-        reasoning = f"Auditor provided a '{'FAIL' if verdict_found else 'PASS'}' verdict without detailed reasoning. Full response: {response}"
+    # Clean up the extracted reasoning from potential markdown artifacts
+    reasoning = re.sub(r'^\s*(?:-\s)?(?:\*\*)?Reasoning(?:\*\*)?:?', '', reasoning, flags=re.IGNORECASE).strip()
 
-    return verdict_found, reasoning
+    if not reasoning:
+        verdict_str = 'FAIL' if is_fail else 'PASS'
+        reasoning = f"Auditor provided a '{verdict_str}' verdict without detailed reasoning."
+        
+    logging.info(f"Is considered a fail: {is_fail}, reasoning: {reasoning}")
+    return is_fail, reasoning
 
 
 def run_duplication_auditor(draft_summary: str) -> bool:
@@ -34,7 +42,6 @@ def run_completeness_auditor(draft_summary: str) -> bool:
 def run_service_auditor(file_name: str, draft_summary: str, public_api_str: str) -> tuple[bool, str]:
     """
     A fully deterministic auditor for the 'Service to Dependents' section.
-    This corrected version uses a more robust regex and logic.
     """
     try:
         match = re.search(r'#### Service to Dependents\n(.*?)(?=\n####|$)', draft_summary, re.DOTALL)
@@ -82,9 +89,83 @@ def run_dependency_grounding_auditor(draft_summary: str, interactions: list, ext
         return False, "Deterministic Check PASSED."
     except Exception as e:
         return True, f"Deterministic Check FAILED: An exception occurred during parsing: {e}"
+def run_claim_grounding_auditor(entity_name: str, claim: str, relevant_code: str) -> tuple[bool, str]:
+    """
+    Audits a single claim against a small, relevant code snippet.
+    """
+    prompt = f"""
+You are a pragmatic and concise code auditor. Your goal is to determine if a single claim about a piece of code is a "hallucination".
+
+**Instructions**
+- A "hallucination" is a statement with NO BASIS in the provided source code.
+- Reasonable inferences based on function names and code structure are ACCEPTABLE.
+
+**YOUR TASK**
+Is the following claim a reasonable interpretation grounded in the associated code snippet?
+
+**Code Snippet for `{entity_name}`:**
+```python
+{relevant_code}
+```
+
+**Claim to Fact-Check:**
+"{claim}"
+
+**Instructions for Your Output:**
+1.  Provide your reasoning in a single, concise sentence.
+2.  Conclude with the verdict on a new line. The verdict must be exactly "Verdict: PASS" or "Verdict: FAIL".
+
+**Reasoning and Verdict:**
+"""
+    response = chat_llm(DEFAULT_MODEL, prompt)
+    logging.info(f"--- AUDITOR PROMPT ---\n{prompt}\n--------------------------")
+    logging.info(f"--- AUDITOR RAW RESPONSE ---\n{response}\n--------------------------")
+    return _parse_auditor_response(response) # Your existing parser is perfect for this
+import json
+def _extract_claims_from_prose(file_name: str, prose_text: str) -> list[dict]:
+    """
+    Uses an LLM to extract specific, verifiable claims from summary prose.
+    """
+    prompt = f"""
+You are a structural analyst. Your task is to read the following summary prose for the file `{file_name}` and break it down into a list of simple, verifiable claims. Each claim must be associated with a specific code entity (the module itself, a function, or a class).
+
+**Prose to Analyze:**
+---
+{prose_text}
+---
+
+**Instructions:**
+Respond with ONLY a valid JSON array of objects. Each object must have two keys:
+1.  `entity_name`: A string with the name of the code entity (e.g., "`{file_name}`", "`chat_llm`", "`MyClass`").
+2.  `claim`: A string describing the single, verifiable claim made about that entity.
+
+**Example Response:**
+[
+  {{"entity_name": "{file_name}", "claim": "Serves as the central interface for interacting with a language model."}},
+  {{"entity_name": "chat_llm", "claim": "Acts as a robust wrapper for the model."}},
+  {{"entity_name": "chat_llm", "claim": "Enables seamless communication between prompts and responses."}}
+]
+
+**JSON Array of Claims:**
+"""
+    response = chat_llm(DEFAULT_MODEL, prompt)
+    try:
+        # Clean up potential markdown code blocks
+        cleaned_response = re.sub(r'```json\n|```', '', response).strip()
+        return json.loads(cleaned_response)
+    except json.JSONDecodeError:
+        logging.error(f"Failed to decode JSON from claim extraction for {file_name}")
+        return []
+
 
 def run_grounding_auditor(file_name: str, prose_text: str, source_code: str) -> tuple[bool, str]:
-    """An LLM-based auditor that fact-checks ONLY the prose sections of the summary."""
+    """
+    An LLM-based auditor that fact-checks ONLY the prose sections of a summary.
+
+    This auditor's specific purpose is to review the "System-Level Role" and
+    "Core Responsibility" sections. It compares this prose against the provided
+    source code to identify "hallucinations"—statements with no basis in the code.
+    """
     prompt = f"""
 You are a pragmatic and concise Chief Software Architect. Your goal is to identify true "hallucinations" in a code summary's prose.
 
@@ -115,5 +196,6 @@ Review ONLY the following prose from the summary for `{file_name}`. Is it a reas
 
 **Reasoning and Verdict:**
 """
+    logging.info(f"Auditor prompt: {prompt}")
     response = chat_llm(DEFAULT_MODEL, prompt)
     return _parse_auditor_response(response)

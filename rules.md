@@ -36,17 +36,6 @@ Core Structure & The Genome:
 
     DRY (Don't Repeat Yourself): Extract duplicated 5+ line blocks into _utils.py modules.
 
-Recursive Evolution & Execution:
-
-    Recursive Evolution Protocol: To create a child MCTS node, the executing Genome must create a candidates/ directory inside its own evolving_graphs/ directory. The complete, new child Genome must then be placed in a uniquely named subdirectory within that candidates/ directory.
-
-        Example Path: If the parent is at .../parent/evolving_graphs/, the child must be created at .../parent/evolving_graphs/candidates/child_01/evolving_graphs/.
-
-        Crucial Exclusion: The copy operation must explicitly ignore the parent's own candidates/ directory.
-
-    Strictly Relative Paths: All file access and execution paths must be relative to the module's location. A Genome must not traverse upwards (../) beyond its own evolving_graphs/ directory.
-
-    Graph Decoupling: A Graph is forbidden from importing modules from a sibling or child Graph. Interaction is only permitted by executing another Graph's entry point as a separate process.
 
 Imports & API:
 
@@ -60,11 +49,7 @@ State, Roles, & Knowledge Integrity:
 
     Acyclic Dependencies: Circular dependencies between any modules within a Graph are strictly forbidden. The import graph must be a Directed Acyclic Graph (DAG).
 
-    Orchestrator Privilege: Within a Graph, a single orchestrator class (e.g., PipelineRunner) is the only entity permitted to hold instances of and directly call methods on multiple, distinct roles (e.g., Scout, Planner).
-
-    Role Isolation: Roles are defined as classes that encapsulate a specific step of a workflow. A Role is forbidden from importing, instantiating, or directly calling another sibling Role. All data must be passed to it by the Orchestrator.
-
-    Database Location: The persistent memory database (e.g., memory_db/) must be located at the project root, outside the /evolving_graphs/ Genome. It is an external dependency, not part of the agent's mutable codebase.
+    Database Location: The persistent memory database (e.g., chroma_db/) must be located at the project root, outside the /evolving_graphs/ Genome. It is an external dependency, not part of the agent's mutable codebase.
 
     Memory Token Limit: Individual memories stored in the database must not exceed 1,000 tokens, as measured by tiktoken. Logic for handling oversized content (e.g., chunking) must exist outside the core MemoryInterface.
 
