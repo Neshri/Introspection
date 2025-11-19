@@ -3,6 +3,7 @@ from .memory_core import ChromaMemory
 from .llm_util import chat_llm
 from .agent_config import DEFAULT_MODEL, CONTEXT_LIMIT
 from .agent_util import project_pulse
+from .summary_models import ModuleContext
 
 class CrawlerAgent:
     def __init__(self, goal: str, target_root: str):
