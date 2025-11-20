@@ -33,7 +33,7 @@ class ProjectSummarizer:
     This class encapsulates the project's dependency graph and the state of
     the module contexts, managing the entire workflow from start to finish.
     """
-    def __init__(self, graph: ProjectGraph, max_cycles: int = 3):
+    def __init__(self, graph: ProjectGraph, max_cycles: int = 1):
         """
         Initializes the ProjectSummarizer.
 
@@ -116,12 +116,12 @@ class ProjectSummarizer:
         return self.contexts
 
 def _create_module_context(path: str, graph: ProjectGraph, dep_contexts: Dict[str, ModuleContext]) -> ModuleContext:
-    """
-    Placeholder for the complex, AI-driven context generation logic.
     
-    The actual implementation of this function would involve calls to a language
-    model to analyze the module's data (from the graph) and its dependency
-    contexts, and then populate a new or refined ModuleContext object.
+    """
+    Generates a ModuleContext for a given module path using the provided graph and dependency contexts.
+
+    This function serves as a wrapper for the actual context generation logic, which is delegated to the ModuleContextualizer class.
+    It logs the start of context generation for the module and ensures that the resulting ModuleContext has a valid file path.
     """
     logging.info(f"Generating context for module: {os.path.basename(path)}")
     mc = ModuleContextualizer(path, graph, dep_contexts)

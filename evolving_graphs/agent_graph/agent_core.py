@@ -1,9 +1,10 @@
-
 from .memory_core import ChromaMemory
 from .llm_util import chat_llm
 from .agent_config import DEFAULT_MODEL, CONTEXT_LIMIT
 from .agent_util import project_pulse
 from .summary_models import ModuleContext
+# ADDED: Import the renderer
+from .report_renderer import ReportRenderer
 
 class CrawlerAgent:
     def __init__(self, goal: str, target_root: str):
@@ -15,11 +16,17 @@ class CrawlerAgent:
     def run(self) -> str:
         # TODO: Implement the agent's logic here
         print(f"Running CrawlerAgent for goal: {self.goal} and target root: {self.target_root}")
-        project_map =  project_pulse(self.target_root)
-        for key, value in project_map.items():
-            print(f"File: {key}, Context data: {value}\n\n")
+        
+        # 1. Analyze the codebase
+        project_map = project_pulse(self.target_root)
+        
+        # 2. Render the report instead of printing raw objects
+        renderer = ReportRenderer(project_map)
+        renderer.render()
+        
         current_turn = 0
-        response = ""
+        response = "Analysis Complete. Check PROJECT_MAP.md."
+        
         # Use for loop for now.
         for i in range(5):
             # Do stuff here like understand the codebase by navigating the graph.

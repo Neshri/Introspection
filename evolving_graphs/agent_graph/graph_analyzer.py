@@ -1,28 +1,29 @@
 import os
 import re
-import libcst
+import libcst as cst
 import logging
 
-class CodeEntityVisitor(libcst.CSTVisitor):
-    def __init__(self, file_path: str, all_project_files: set, module_node: libcst.Module):
+class CodeEntityVisitor(cst.CSTVisitor):
+    def __init__(self, file_path: str, all_project_files: set, module_node: cst.Module):
         self.file_path = file_path
         self.all_project_files = all_project_files
         self.module_dir = os.path.dirname(os.path.abspath(file_path))
-        self.module_node = module_node # Keep a reference to the root module node
+        self.module_node = module_node 
         
         self.relative_imports = set()
         self.external_imports = set()
         self.import_map = {}
         self.cross_module_interactions = []
-        self.entities = {"functions": [], "classes": {}}
+        # Added "globals" to entities
+        self.entities = {"functions": [], "classes": {}, "globals": []}
         self.current_context = []
 
-    def visit_Import(self, node: libcst.Import) -> None:
+    def visit_Import(self, node: cst.Import) -> None:
         for alias in node.names:
             module_name = self.module_node.code_for_node(alias.name)
             self.external_imports.add(module_name)
 
-    def visit_ImportFrom(self, node: libcst.ImportFrom) -> None:
+    def visit_ImportFrom(self, node: cst.ImportFrom) -> None:
         if not node.relative:
             if node.module:
                 module_name = self.module_node.code_for_node(node.module)
@@ -35,7 +36,7 @@ class CodeEntityVisitor(libcst.CSTVisitor):
         module_name_parts = []
         if node.module:
             current = node.module
-            while isinstance(current, libcst.Attribute):
+            while isinstance(current, cst.Attribute):
                 module_name_parts.insert(0, current.attr.value)
                 current = current.value
             module_name_parts.insert(0, current.value)
@@ -54,63 +55,100 @@ class CodeEntityVisitor(libcst.CSTVisitor):
                 if imported_file in self.all_project_files:
                     self.relative_imports.add(imported_file); self.import_map[name_node.name.value] = imported_file
 
+    # --- New: Capture Global Assignments (Constants) ---
+    def visit_Assign(self, node: cst.Assign) -> None:
+        # Only capture top-level assignments (Module Scope)
+        if len(self.current_context) > 0: return
         
-    def _analyze_function_body(self, node: libcst.FunctionDef) -> bool:
+        for target in node.targets:
+            if isinstance(target.target, cst.Name):
+                name = target.target.value
+                source = self.module_node.code_for_node(node)
+                self.entities["globals"].append({
+                    "name": name,
+                    "source_code": source,
+                    "signature": f"{name} = ...", # Pseudo-signature for display
+                    "is_private": name.startswith("_")
+                })
+
+    def visit_AnnAssign(self, node: cst.AnnAssign) -> None:
+        if len(self.current_context) > 0: return
+        
+        if isinstance(node.target, cst.Name):
+            name = node.target.value
+            source = self.module_node.code_for_node(node)
+            self.entities["globals"].append({
+                "name": name,
+                "source_code": source,
+                "signature": f"{name}: {self.module_node.code_for_node(node.annotation.annotation)} = ...",
+                "is_private": name.startswith("_")
+            })
+    # ---------------------------------------------------
+
+    def _analyze_function_body(self, node: cst.FunctionDef) -> bool:
         body = node.body
-        if isinstance(body, libcst.SimpleStatementSuite):
-            return any(isinstance(stmt, libcst.Pass) for stmt in body.body)
-        
-        if isinstance(body, libcst.IndentedBlock):
-            statements = [stmt for stmt in body.body if not (isinstance(stmt, libcst.SimpleStatementLine) and isinstance(stmt.body[0], libcst.Expr))]
+        if isinstance(body, cst.SimpleStatementSuite):
+            return any(isinstance(stmt, cst.Pass) for stmt in body.body)
+        if isinstance(body, cst.IndentedBlock):
+            statements = [stmt for stmt in body.body if not (isinstance(stmt, cst.SimpleStatementLine) and isinstance(stmt.body[0], cst.Expr))]
             if not statements: return False
             if len(statements) == 1:
                 stmt = statements[0]
-                if isinstance(stmt, libcst.SimpleStatementLine) and len(stmt.body) == 1:
+                if isinstance(stmt, cst.SimpleStatementLine) and len(stmt.body) == 1:
                     actual_stmt = stmt.body[0]
-                    if isinstance(actual_stmt, libcst.Pass): return True
-                    if isinstance(actual_stmt, libcst.Raise) and isinstance(actual_stmt.exc, libcst.Name) and actual_stmt.exc.value == "NotImplementedError":
+                    if isinstance(actual_stmt, cst.Pass): return True
+                    if isinstance(actual_stmt, cst.Raise) and isinstance(actual_stmt.exc, cst.Name) and actual_stmt.exc.value == "NotImplementedError":
                         return True
         return False
 
-    def visit_ClassDef(self, node: libcst.ClassDef) -> None:
+    def visit_ClassDef(self, node: cst.ClassDef) -> None:
         self.current_context.append(node.name.value)
-        # CORRECTED: Use the official libcst method to get the source code for the node.
         class_source = self.module_node.code_for_node(node)
+        docstring = node.get_docstring()
+        
         self.entities["classes"][node.name.value] = {
             "source_code": class_source,
+            "docstring": docstring,
             "methods": []
         }
 
-    def leave_ClassDef(self, original_node: libcst.ClassDef) -> None:
+    def leave_ClassDef(self, original_node: cst.ClassDef) -> None:
         self.current_context.pop()
 
-    def visit_FunctionDef(self, node: libcst.FunctionDef) -> None:
+    def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
         self.current_context.append(node.name.value)
         
-        # CORRECTED: Use the official libcst method to get the source code.
         func_source = self.module_node.code_for_node(node)
         params = self.module_node.code_for_node(node.params)
         returns = f" -> {self.module_node.code_for_node(node.returns.annotation)}" if node.returns else ""
         signature = f"def {node.name.value}({params}){returns}:"
-        is_unimplemented = self._analyze_function_body(node)
         
+        docstring = node.get_docstring()
+        is_unimplemented = self._analyze_function_body(node)
+        is_private = node.name.value.startswith('_') and not node.name.value.startswith('__')
+        
+        header = signature
+        if docstring:
+            header += f'\n    """{docstring}"""'
+
         component_data = {
             "signature": signature,
+            "header": header,
+            "docstring": docstring,
             "source_code": func_source,
-            "is_unimplemented": is_unimplemented
+            "is_unimplemented": is_unimplemented,
+            "is_private": is_private
         }
 
         is_method = len(self.current_context) > 1 and self.current_context[-2] in self.entities["classes"]
-        is_private = node.name.value.startswith('_')
-
-        if not is_private:
-            if is_method:
-                class_name = self.current_context[-2]
-                self.entities["classes"][class_name]["methods"].append(component_data)
-            else:
-                self.entities["functions"].append(component_data)
+        
+        if is_method:
+            class_name = self.current_context[-2]
+            self.entities["classes"][class_name]["methods"].append(component_data)
+        else:
+            self.entities["functions"].append(component_data)
     
-    def leave_FunctionDef(self, original_node: libcst.FunctionDef) -> None:
+    def leave_FunctionDef(self, original_node: cst.FunctionDef) -> None:
         if self.current_context:
             self.current_context.pop()
         
@@ -120,10 +158,10 @@ class CodeEntityVisitor(libcst.CSTVisitor):
             context = ".".join(self.current_context) or "module_level"
             self.cross_module_interactions.append({"context": context, "target_module": os.path.basename(target_module_path), "symbol": symbol})
 
-    def visit_Call(self, node: libcst.Call) -> None:
-        if isinstance(node.func, libcst.Name): self._record_interaction(node.func.value)
+    def visit_Call(self, node: cst.Call) -> None:
+        if isinstance(node.func, cst.Name): self._record_interaction(node.func.value)
 
-    def visit_Name(self, node: libcst.Name) -> None:
+    def visit_Name(self, node: cst.Name) -> None:
         if self.current_context and self.current_context[-1] == node.value: return
         self._record_interaction(node.value)
 
@@ -151,12 +189,17 @@ class GraphAnalyzer:
         logging.info(f"[GraphAnalyzer] Statically analyzing: {file_name}")
         try:
             with open(abs_path, 'r', encoding='utf-8') as f: source_code = f.read()
-            module_node = libcst.parse_module(source_code)
+            module_node = cst.parse_module(source_code)
             visitor = CodeEntityVisitor(abs_path, self.all_project_files, module_node)
             module_node.visit(visitor)
             todos = self._find_todos(source_code)
+            
+            module_docstring = module_node.get_docstring()
+
             self.graph[abs_path] = {
-                "path": abs_path, "file_name": file_name, "source_code": source_code,
+                "path": abs_path, "file_name": file_name, 
+                "source_code": source_code,
+                "docstring": module_docstring,
                 "dependencies": visitor.relative_imports, "dependents": set(),
                 "interactions": visitor.cross_module_interactions,
                 "external_imports": visitor.external_imports,

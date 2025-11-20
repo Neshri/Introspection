@@ -125,7 +125,7 @@ class ModuleContext:
     def __repr__(self) -> str:
         """Provides a meaningful string representation of the ModuleContext."""
         file_info = self.file_path if self.file_path else "unknown file"
-        role_info = self.module_role.text[:50] if self.module_role.text else "No role defined"
+        role_info = self.module_role.text if self.module_role.text else "No role defined"
         
         return (f"ModuleContext(file='{file_info}', "
                 f"role='{role_info}', "
