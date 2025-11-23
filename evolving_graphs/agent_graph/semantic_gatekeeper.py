@@ -23,20 +23,25 @@ class SemanticGatekeeper:
     def execute_with_feedback(self, initial_prompt: str, json_key: str, forbidden_terms: List[str] = [], verification_source: str = None, log_context: str = "General") -> str:
         final_prompt = f"{initial_prompt}\n\nIMPORTANT: Return ONLY a valid JSON object with key '{json_key}'. No Markdown."
         
-        conversation_history = f"System: Output valid JSON only.\nUser: {final_prompt}"
+        # Initialize proper message history
+        messages = [
+            {"role": "system", "content": "Output valid JSON only."},
+            {"role": "user", "content": final_prompt}
+        ]
         
         MAX_RETRIES = 2
         last_attempt_content = "[Analysis Failed]"
         
         for attempt in range(MAX_RETRIES + 1):
-            raw_response = chat_llm(DEFAULT_MODEL, conversation_history)
+            raw_response = chat_llm(DEFAULT_MODEL, messages)
             
             # 1. Parse JSON
-            clean_val = self._parse_json_safe(raw_response, json_key)
+            clean_val, json_error = self._parse_json_safe(raw_response, json_key)
             
             if not clean_val:
-                logging.warning(f"[{log_context}] [Attempt {attempt}] FORMAT FAIL: {raw_response[:50]}...")
-                conversation_history += f"\nAssistant: {raw_response}\nUser: Critique: Invalid JSON. Return strictly JSON with key '{json_key}'."
+                logging.warning(f"[{log_context}] [Attempt {attempt}] FORMAT FAIL.\nPROMPT: {final_prompt}\nRESPONSE: {raw_response}\nERROR: {json_error}")
+                messages.append({"role": "assistant", "content": raw_response})
+                messages.append({"role": "user", "content": f"Critique: Invalid JSON. Error: {json_error}. Ensure backslashes are escaped (e.g. \\\\s). Return strictly JSON with key '{json_key}'."})
                 continue
 
             last_attempt_content = clean_val # Save for fallback
@@ -45,7 +50,8 @@ class SemanticGatekeeper:
             is_valid_style, style_critique = self._critique_content(clean_val, forbidden_terms)
             if not is_valid_style:
                 logging.warning(f"[{log_context}] [Attempt {attempt}] STYLE FAIL: '{clean_val}' -> {style_critique}")
-                conversation_history += f"\nAssistant: {raw_response}\nUser: {style_critique}"
+                messages.append({"role": "assistant", "content": raw_response})
+                messages.append({"role": "user", "content": style_critique})
                 continue
 
             # 3. Check Grounding (The "Auditor")
@@ -54,7 +60,8 @@ class SemanticGatekeeper:
                 
                 if confidence == 0:
                     logging.warning(f"[{log_context}] [Attempt {attempt}] TRUTH FAIL (0/5): '{clean_val}' -> {reason}")
-                    conversation_history += f"\nAssistant: {raw_response}\nUser: Critique: Factually unsupported. {reason}"
+                    messages.append({"role": "assistant", "content": raw_response})
+                    messages.append({"role": "user", "content": f"Critique: Factually unsupported. {reason}"})
                     continue
                 
                 if confidence < 3:
@@ -67,13 +74,11 @@ class SemanticGatekeeper:
         return f"(Unverified) {last_attempt_content}"
 
     def _verify_grounding(self, claim: str, source_code: str) -> Tuple[int, str]:
-        # ... (Keep existing logic)
-        context_window = source_code[:2500]
         verify_prompt = f"""
         Act as a Code Auditor.
         Reference Code:
         ```python
-        {context_window}
+        {source_code}
         ```
         Claim: "{claim}"
         Task: Rate confidence (0-5) that the Code supports the Claim.
@@ -110,22 +115,22 @@ class SemanticGatekeeper:
             
         return True, "Valid"
 
-    def _parse_json_safe(self, raw: str, key: str) -> Optional[str]:
+    def _parse_json_safe(self, raw: str, key: str) -> Tuple[Optional[str], Optional[str]]:
         try:
-            if not raw: return None
+            if not raw: return None, "Empty response"
             clean = raw.strip()
             if "```" in clean:
                 clean = clean.split("```")[1].replace("json", "")
             start = clean.find("{")
             end = clean.rfind("}") + 1
-            if start == -1: return None
+            if start == -1: return None, "No JSON object found"
             clean = clean[start:end]
             data = json.loads(clean)
             val = data.get(key, "")
-            if isinstance(val, str): return val.strip()
-            return str(val)
-        except:
-            return None
+            if isinstance(val, str): return val.strip(), None
+            return str(val), None
+        except Exception as e:
+            return None, str(e)
 
     def _parse_whole_json(self, raw: str) -> dict:
         try:

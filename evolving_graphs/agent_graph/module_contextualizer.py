@@ -33,7 +33,7 @@ class ModuleContextualizer:
             return self.context
 
         # Use the class-level usage_map we calculated in __init__
-        self.comp_analyst.analyze_components(
+        self.working_memory = self.comp_analyst.analyze_components(
             self.context, 
             self.data.get('entities', {}), 
             self.file_path,
@@ -45,7 +45,8 @@ class ModuleContextualizer:
             self.data.get('dependencies', set()), 
             self.dep_contexts, 
             self.module_name, 
-            self.file_path
+            self.file_path,
+            interactions=self.data.get('interactions', [])
         )
 
         self._pass_systemic_synthesis()
@@ -93,7 +94,12 @@ class ModuleContextualizer:
 
     def _pass_systemic_synthesis(self):
         local_caps = [f"- {k}: {v.text}" for k, v in self.context.public_api.items()]
+        local_caps = [f"- {k}: {v.text}" for k, v in self.context.public_api.items()]
         upstream_knowledge = self._gather_upstream_knowledge()
+        
+        # Add External Imports to Context
+        external_imports = sorted(list(self.data.get('external_imports', [])))
+        imports_context = f"External Imports: {', '.join(external_imports)}" if external_imports else "(None)"
         
         # --- DETERMINISTIC IMPACT ANALYSIS ---
         # Derive the impact list from the Usage Map (Hard Data), not file dependencies.
@@ -118,17 +124,25 @@ class ModuleContextualizer:
         {chr(10).join(local_caps)}
         
         Upstream Context (Knowledge from Dependencies):
+        Upstream Context (Knowledge from Dependencies):
         {upstream_knowledge if upstream_knowledge else "(None)"}
         
+        External Dependencies (Imports):
+        {imports_context}
+        
         Instruction: Return a JSON object with field "role".
-        1. Describe the BUSINESS LOGIC.
-        2. Do NOT start with "The {self.module_name} module is..."
-        3. Start directly with the responsibility (e.g. "Analyzes code structure...").
-        4. If this module uses a specific configuration (like a model name found in Upstream Context), MENTION IT.
+        1. Value MUST be a single string starting with a VERB (e.g. "Manages", "Analyzes").
+        2. FORBIDDEN: Do not use the module name "{self.module_name}" in the description.
+        3. FORBIDDEN: Do not use words like "efficient", "seamless", "robust", "facilitate".
+        4. Describe the BUSINESS LOGIC directly.
+        5. If this module uses a specific configuration (like a model name found in Upstream Context), MENTION IT.
         """
         
-        # Pass the FULL source code for verification.
-        verification_evidence = f"--- SOURCE ---\n{self.data.get('source_code', '')}\n--- UPSTREAM ---\n{upstream_knowledge}"
+        # Pass the SKELETON + WORKING MEMORY for verification (Recursive Verification).
+        skeleton = self.comp_analyst.generate_module_skeleton(self.data.get('source_code', ''))
+        working_memory_str = "\n".join(getattr(self, 'working_memory', []))
+        
+        verification_evidence = f"--- MODULE SKELETON ---\n{skeleton}\n\n--- CHILD SUMMARIES (Working Memory) ---\n{working_memory_str}\n\n--- UPSTREAM ---\n{upstream_knowledge}\n\n--- IMPORTS ---\n{imports_context}"
         
         context_label = f"SystemicSynthesis:{self.module_name}"
         

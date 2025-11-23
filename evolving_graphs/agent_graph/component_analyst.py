@@ -8,8 +8,12 @@ class ComponentAnalyst:
     def __init__(self, gatekeeper: SemanticGatekeeper):
         self.gatekeeper = gatekeeper
 
-    def analyze_components(self, context: ModuleContext, entities: Dict[str, Any], file_path: str, usage_map: Dict[str, List[str]] = {}):
+    def analyze_components(self, context: ModuleContext, entities: Dict[str, Any], file_path: str, usage_map: Dict[str, List[str]] = {}) -> List[str]:
+        """
+        Analyzes components and returns a list of verified summaries (Working Memory).
+        """
         module_name = os.path.basename(file_path)
+        working_memory = []
         
         # --- Step 1: Build Scope Context (Facts Only) ---
         # We list what exists, but we do NOT include docstrings in the context.
@@ -42,11 +46,13 @@ class ComponentAnalyst:
             log_label = f"{module_name}:{name}"
             summary = self._analyze_mechanism(
                 "Global/Constant", name, source, 
+                docstring="", # Globals usually don't have docstrings in this structure
                 prompt_override=prompt, 
                 scope_context=base_scope_context, 
                 log_label=log_label
             )
             self._add_entry(context, name, summary, is_internal, file_path)
+            working_memory.append(f"Global `{name}`: {summary}")
 
         # --- Step 3: Analyze Functions ---
         for func in entities.get('functions', []):
@@ -73,12 +79,14 @@ class ComponentAnalyst:
 
             summary = self._analyze_mechanism(
                 "Function", name, source, 
+                docstring=func.get('docstring', ''),
                 prompt_override=prompt,
                 forbidden_terms=[name], 
                 scope_context="\n".join(relevant_context),
                 log_label=log_label
             )
             self._add_entry(context, name, summary, is_internal, file_path)
+            working_memory.append(f"Function `{name}`: {summary}")
 
         # --- Step 4: Analyze Classes ---
         for class_name, class_data in entities.get('classes', {}).items():
@@ -104,6 +112,7 @@ class ComponentAnalyst:
                     
                     action = self._analyze_mechanism(
                         "Method", f"{class_name}.{m_name}", source,
+                        docstring=method.get('docstring', ''),
                         prompt_override=m_prompt,
                         forbidden_terms=[m_name, "init"],
                         scope_context=base_scope_context,
@@ -127,6 +136,44 @@ class ComponentAnalyst:
             prefix = "class "
             display_name = f"🔒 {prefix}{class_name}" if is_internal else f"🔌 {prefix}{class_name}"
             context.add_public_api_entry(display_name, class_summary, [Claim(class_summary, f"{prefix}{class_name}", file_path)])
+            working_memory.append(f"Class `{class_name}`: {class_summary}")
+            
+        return working_memory
+
+    def generate_module_skeleton(self, source_code: str) -> str:
+        """
+        Generates a valid Python skeleton (Imports + Signatures + Globals) with bodies removed.
+        This serves as the 'Structure' for Macro-Verification.
+        """
+        try:
+            tree = ast.parse(source_code)
+        except:
+            return source_code # Fallback if parse fails
+
+        class SkeletonTransformer(ast.NodeTransformer):
+            def visit_FunctionDef(self, node):
+                # Keep signature, replace body with '...'
+                new_node = node
+                new_node.body = [ast.Expr(value=ast.Constant(value=Ellipsis))]
+                return new_node
+
+            def visit_AsyncFunctionDef(self, node):
+                new_node = node
+                new_node.body = [ast.Expr(value=ast.Constant(value=Ellipsis))]
+                return new_node
+
+            def visit_ClassDef(self, node):
+                # Visit methods to strip them, but keep the class structure
+                self.generic_visit(node)
+                return node
+
+        transformer = SkeletonTransformer()
+        new_tree = transformer.visit(tree)
+        
+        try:
+            return ast.unparse(new_tree)
+        except:
+            return source_code
 
     def _get_logic_only_source(self, source_code: str) -> str:
         """
@@ -149,18 +196,21 @@ class ComponentAnalyst:
             # Fallback if partial code snippet fails parse
             return source_code
 
-    def _analyze_mechanism(self, type_label: str, name: str, source: str, forbidden_terms: List[str] = [], prompt_override: str = None, scope_context: str = "", log_label: str = "General") -> str:
+    def _analyze_mechanism(self, type_label: str, name: str, source: str, docstring: str = "", forbidden_terms: List[str] = [], prompt_override: str = None, scope_context: str = "", log_label: str = "General") -> str:
         
         # Sanitize the specific snippet being analyzed
         clean_source = self._get_logic_only_source(source)
 
         base_prompt = prompt_override if prompt_override else f"""
-        Task: Analyze the mechanism of {type_label} `{name}`.
+        Task: Analyze the PURPOSE and MECHANISM of {type_label} `{name}`.
         """
         
         instruction = f"""
         Context:
         {scope_context}
+        
+        Developer Intent (Docstring):
+        "{docstring}"
         
         Code Logic (Docstrings Removed):
         ```python
@@ -169,9 +219,12 @@ class ComponentAnalyst:
         
         Instruction: Return a JSON object with field "description".
         1. Value MUST be a single string.
-        2. Describe strictly WHAT the code performs (e.g. "Assigns X", "Calls Y", "Raises Z").
-        3. Do not infer "Intent" or "Efficiency". Stick to the operations.
+        2. Describe WHAT the code performs and WHY (Purpose).
+        3. Use the Docstring as a hint for intent, but VERIFY it against the Code Logic.
         4. Start with a Verb.
+        5. FORBIDDEN: Do not use the name "{name}" in the description.
+        6. Constraint: Description must be at least 5 words long (Verb + Object + Detail).
+        7. JSON Warning: If the code contains Regex or Windows paths, ESCAPE backslashes (e.g. use "\\\\s" instead of "\\s").
         """
         
         return self.gatekeeper.execute_with_feedback(
@@ -194,6 +247,8 @@ class ComponentAnalyst:
         Instruction: Return a JSON object with field "role".
         1. Start with a VERB (e.g. "Manages", "Encapsulates").
         2. Describe what state/data this class owns based on the methods.
+        3. FORBIDDEN: Do not use the class name "{class_name}" in the description.
+        4. Constraint: Description must be at least 5 words long.
         """
         return self.gatekeeper.execute_with_feedback(
             prompt, 

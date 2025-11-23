@@ -15,7 +15,7 @@ class HierarchicalCodeDescriptor:
     recursive summary of the entire system architecture using an LLM.
     """
 
-    def __init__(self, root_dir, model="gemma3:4b-it-qat"):
+    def __init__(self, root_dir, model="granite4:3b"):
         self.root_dir = root_dir
         self.model = model
         self.dependency_graph = nx.DiGraph()

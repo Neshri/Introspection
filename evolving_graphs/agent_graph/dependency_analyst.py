@@ -8,7 +8,7 @@ class DependencyAnalyst:
     def __init__(self, gatekeeper: SemanticGatekeeper):
         self.gatekeeper = gatekeeper
 
-    def analyze_dependencies(self, context: ModuleContext, dependencies: Set[str], dep_contexts: Dict[str, ModuleContext], module_name: str, file_path: str):
+    def analyze_dependencies(self, context: ModuleContext, dependencies: Set[str], dep_contexts: Dict[str, ModuleContext], module_name: str, file_path: str, interactions: list = []):
         """
         Analyzes imports to determine intent, utilizing upstream knowledge for context.
         """
@@ -36,8 +36,12 @@ class DependencyAnalyst:
                     values_context = "\nKnown Exported Values:\n" + "\n".join(known_values[:3])
 
                 # --- 3. Prepare Verification Evidence ---
+                # Filter interactions for this dependency
+                used_symbols = sorted(list(set([i['symbol'] for i in interactions if i['target_module'] == dep_name])))
+                usage_context = f"Used Symbols: {', '.join(used_symbols)}" if used_symbols else "Used Symbols: (None detected)"
+
                 # This is needed so the Auditor doesn't reject specific claims like "uses granite4:3b"
-                verification_source = f"Dependency Role: {child_role}\n{values_context}"
+                verification_source = f"Dependency Role: {child_role}\n{values_context}\n{usage_context}"
                 
                 # --- 4. Prepare Log Label ---
                 label = f"Dep:{module_name}->{dep_name}"
@@ -46,12 +50,18 @@ class DependencyAnalyst:
                 prompt = f"""
                 Context: Module `{module_name}` imports `{dep_name}`.
                 `{dep_name}` Role: "{child_role}"
+                Context: Module `{module_name}` imports `{dep_name}`.
+                `{dep_name}` Role: "{child_role}"
                 {values_context}
+                {usage_context}
                 
                 Task: Why does `{module_name}` need this dependency? 
                 (If it uses a Known Exported Value, explicitly MENTION it).
                 
                 Instruction: Return a JSON object with field "intent" (Single string).
+                1. Start with a VERB.
+                2. FORBIDDEN: Do not use the name "{dep_name}" in the description.
+                3. Constraint: Description must be at least 5 words long.
                 """
                 
                 intent = self.gatekeeper.execute_with_feedback(
