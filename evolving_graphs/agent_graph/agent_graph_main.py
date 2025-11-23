@@ -1,6 +1,19 @@
 import argparse
 import os
+import logging
 from .agent_core import CrawlerAgent
+
+# --- Logging Setup ---
+# Configure root logger
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+
+# Silence noisy HTTP libraries used by Ollama
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 def main(goal: str, target_folder: str) -> str:
     target_root = None

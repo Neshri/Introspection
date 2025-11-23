@@ -33,7 +33,7 @@ class ProjectSummarizer:
     This class encapsulates the project's dependency graph and the state of
     the module contexts, managing the entire workflow from start to finish.
     """
-    def __init__(self, graph: ProjectGraph, max_cycles: int = 1):
+    def __init__(self, graph: ProjectGraph, max_cycles: int = 3):
         """
         Initializes the ProjectSummarizer.
 

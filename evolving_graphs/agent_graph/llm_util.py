@@ -1,4 +1,5 @@
 import ollama
+import logging
 
 def chat_llm(model: str, prompt: str) -> str:
     """
@@ -16,11 +17,8 @@ def chat_llm(model: str, prompt: str) -> str:
             model=model,
             messages=[{'role': 'user', 'content': prompt}]
         )
+        logging.info(prompt+ "\n\n"+ response['message']['content'].strip())
         return response['message']['content'].strip()
     except Exception as e:
         return f"Error: LLM chat failed: {e}"
     
-
-
-if __name__ == "__main__":
-    print(chat_llm("granite4:tiny-h", "Hello, how are you?"))
