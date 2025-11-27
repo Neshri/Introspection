@@ -8,7 +8,7 @@ class ComponentAnalyst:
     def __init__(self, gatekeeper: SemanticGatekeeper):
         self.gatekeeper = gatekeeper
 
-    def analyze_components(self, context: ModuleContext, entities: Dict[str, Any], file_path: str, usage_map: Dict[str, List[str]] = {}) -> List[str]:
+    def analyze_components(self, context: ModuleContext, entities: Dict[str, Any], file_path: str, usage_map: Dict[str, List[str]] = {}, interactions: List[Dict] = [], dep_contexts: Dict[str, ModuleContext] = {}) -> List[str]:
         """
         Analyzes components and returns a list of verified summaries (Working Memory).
         """
@@ -41,12 +41,11 @@ class ComponentAnalyst:
             is_internal = glob.get('is_private', False)
             
             # QUESTION: Identity
-            prompt = f"Identify the specific data structure or literal value assigned to `{name}`."
+            prompt = "Identify the specific data structure or literal value assigned in this statement."
             
             log_label = f"{module_name}:{name}"
             summary = self._analyze_mechanism(
                 "Global/Constant", name, source, 
-                docstring="", # Globals usually don't have docstrings in this structure
                 prompt_override=prompt, 
                 scope_context=base_scope_context, 
                 log_label=log_label
@@ -66,30 +65,39 @@ class ComponentAnalyst:
             if usages:
                 relevant_context.insert(0, f"Caller Context: Used by {', '.join(usages[:3])}")
 
+            # Dependency Context (Outgoing)
+            dep_context = self._resolve_dependency_context(name, interactions, dep_contexts)
+            if dep_context:
+                relevant_context.append(f"Dependency Context:\n{dep_context}")
+
             log_label = f"{module_name}:{name}"
-            
+
             # QUESTION: Mechanism (Input -> Transformation -> Output)
-            prompt = f"""
-            Task: Describe the MECHANISM of function `{name}`.
-            1. What arguments does it accept?
-            2. What external functions does it call?
-            3. What does it return?
+            prompt = """
+            Task: Analyze the MECHANISM, INVARIANTS, and SIDE EFFECTS of this code block.
+            1. Identify input arguments and return values.
+            2. Identify **Side Effects** (e.g. I/O, global state changes, external API calls).
+            3. Identify **Invariants** (e.g. assertions, raised exceptions, validation checks).
+            
+            Constraint: If you find a Side Effect or Invariant, you MUST explicitly state it in the description (e.g. "Enforces non-null input", "Mutates global configuration").
             Ignore all comments. Focus ONLY on the code logic.
             """
 
             summary = self._analyze_mechanism(
                 "Function", name, source, 
-                docstring=func.get('docstring', ''),
                 prompt_override=prompt,
-                forbidden_terms=[name], 
+                forbidden_terms=[name] if name != "main" else [], 
                 scope_context="\n".join(relevant_context),
                 log_label=log_label
             )
             self._add_entry(context, name, summary, is_internal, file_path)
             working_memory.append(f"Function `{name}`: {summary}")
 
-        # --- Step 4: Analyze Classes ---
+# --- Step 4: Analyze Classes ---
         for class_name, class_data in entities.get('classes', {}).items():
+            # FIX: Determine class visibility BEFORE iterating methods
+            is_internal = class_name.startswith('_')
+            
             method_summaries = []
             methods = class_data.get('methods', [])
             
@@ -101,18 +109,26 @@ class ComponentAnalyst:
                 m_name = method['signature'].split('(')[0].replace('def ', '')
                 source = method.get('source_code', '')
                 
-                # Check for pure abstract methods
+                # Check for pure abstract methods or NotImplementedError
                 clean_method_source = self._get_logic_only_source(source)
-                if "pass" in clean_method_source and len(clean_method_source.split()) < 5:
+                is_abstract = False
+                
+                # Check for 'pass' or '...'
+                if ("pass" in clean_method_source or "..." in clean_method_source) and len(clean_method_source.split()) < 5:
+                    is_abstract = True
+                # Check for NotImplementedError
+                elif "NotImplementedError" in clean_method_source and len(clean_method_source.split()) < 15:
+                    is_abstract = True
+
+                if is_abstract:
                     action = "Defines interface signature (Abstract)."
                 else:
                     log_label = f"{module_name}:{class_name}.{m_name}"
                     # QUESTION: State Mutation
-                    m_prompt = f"What logic does method `{m_name}` execute? Does it modify `self` attributes?"
+                    m_prompt = "Describe the actions performed by this method, including any side effects or state mutations. Start directly with the verb. Do not restate the method name."
                     
                     action = self._analyze_mechanism(
                         "Method", f"{class_name}.{m_name}", source,
-                        docstring=method.get('docstring', ''),
                         prompt_override=m_prompt,
                         forbidden_terms=[m_name, "init"],
                         scope_context=base_scope_context,
@@ -120,6 +136,12 @@ class ComponentAnalyst:
                     )
                 
                 method_summaries.append(f"- {m_name}: {action}")
+                
+                # EXPOSE METHOD IN PUBLIC API
+                # Now is_internal is correctly defined
+                method_display_name = f"🔌 {class_name}.{m_name}"
+                if not is_internal and not m_name.startswith('_'):
+                     self._add_entry(context, method_display_name, action, False, file_path)
 
             if not method_summaries:
                 class_summary = f"Data container for {class_name} records."
@@ -132,7 +154,7 @@ class ComponentAnalyst:
                     log_label=log_label
                 )
             
-            is_internal = class_name.startswith('_')
+            # (Assignment used to be here - now removed or redundant if just used for prefix below)
             prefix = "class "
             display_name = f"🔒 {prefix}{class_name}" if is_internal else f"🔌 {prefix}{class_name}"
             context.add_public_api_entry(display_name, class_summary, [Claim(class_summary, f"{prefix}{class_name}", file_path)])
@@ -163,6 +185,11 @@ class ComponentAnalyst:
                 return new_node
 
             def visit_ClassDef(self, node):
+                # Remove docstring if present
+                if ast.get_docstring(node):
+                    node.body = node.body[1:]
+                    if not node.body:
+                        node.body.append(ast.Pass())
                 # Visit methods to strip them, but keep the class structure
                 self.generic_visit(node)
                 return node
@@ -196,42 +223,47 @@ class ComponentAnalyst:
             # Fallback if partial code snippet fails parse
             return source_code
 
-    def _analyze_mechanism(self, type_label: str, name: str, source: str, docstring: str = "", forbidden_terms: List[str] = [], prompt_override: str = None, scope_context: str = "", log_label: str = "General") -> str:
+    def _analyze_mechanism(self, type_label: str, name: str, source: str, forbidden_terms: List[str] = [], prompt_override: str = None, scope_context: str = "", log_label: str = "General") -> str:
         
         # Sanitize the specific snippet being analyzed
         clean_source = self._get_logic_only_source(source)
 
-        base_prompt = prompt_override if prompt_override else f"""
-        Task: Analyze the PURPOSE and MECHANISM of {type_label} `{name}`.
-        """
+        specific_task = prompt_override if prompt_override else f"Analyze the PURPOSE and MECHANISM of this {type_label}."
         
-        instruction = f"""
-        Context:
-        {scope_context}
-        
-        Developer Intent (Docstring):
-        "{docstring}"
-        
-        Code Logic (Docstrings Removed):
-        ```python
-        {clean_source}
-        ```
-        
-        Instruction: Return a JSON object with field "description".
-        1. Value MUST be a single string.
-        2. Describe WHAT the code performs and WHY (Purpose).
-        3. Use the Docstring as a hint for intent, but VERIFY it against the Code Logic.
-        4. Start with a Verb.
-        5. FORBIDDEN: Do not use the name "{name}" in the description.
-        6. Constraint: Description must be at least 5 words long (Verb + Object + Detail).
-        7. JSON Warning: If the code contains Regex or Windows paths, ESCAPE backslashes (e.g. use "\\\\s" instead of "\\s").
-        """
+        prompt = f"""
+### ROLE
+You are a Technical Code Analyst.
+
+### CONTEXT
+{scope_context}
+
+### INPUT CODE
+Code Logic:
+```python
+{clean_source}
+```
+
+### TASK
+Generate a JSON object with a "description" field that describes the PURPOSE and MECHANISM of this code.
+{specific_task}
+
+### REQUIREMENTS
+1. Output strictly valid JSON with key "description".
+2. Start directly with a VERB (e.g. "Manages", "Parses").
+3. Do NOT use the name "{name}". Do not even mention that you are avoiding it.
+4. Description must be at least 5 words long.
+5. If the code contains Regex or Windows paths, ESCAPE backslashes.
+
+### EXAMPLE
+Input Code: def add(a, b): return a + b
+Output: {{"description": "Calculates the sum of two inputs and returns the result."}}
+"""
         
         return self.gatekeeper.execute_with_feedback(
-            base_prompt + instruction, 
+            prompt, 
             "description", 
             forbidden_terms, 
-            verification_source=clean_source, # Verify against TRUTH (Code), not comments
+            verification_source=f"{clean_source}\n\n--- Context ---\n{scope_context}", # Verify against TRUTH (Code) + Context
             log_context=log_label
         )
 
@@ -239,17 +271,31 @@ class ComponentAnalyst:
         methods_block = chr(10).join(method_summaries)
         
         prompt = f"""
-        Task: Synthesize the structural role of Class `{class_name}`.
-        
-        Method Mechanisms:
-        {methods_block}
-        
-        Instruction: Return a JSON object with field "role".
-        1. Start with a VERB (e.g. "Manages", "Encapsulates").
-        2. Describe what state/data this class owns based on the methods.
-        3. FORBIDDEN: Do not use the class name "{class_name}" in the description.
-        4. Constraint: Description must be at least 5 words long.
-        """
+### ROLE
+You are a Technical Code Analyst.
+
+### CONTEXT
+Class Name: `{class_name}`
+Method Summaries:
+{methods_block}
+
+### TASK
+Generate a JSON object with a "role" field that synthesizes the structural role of this Class.
+1. Start with a VERB (e.g. "Manages", "Encapsulates").
+2. Describe what state/data this class owns based on the methods.
+
+### REQUIREMENTS
+1. Output strictly valid JSON with key "role".
+2. Do NOT use the class name "{class_name}". Do not even mention that you are avoiding it.
+3. Do NOT use marketing adjectives (e.g. "efficient", "seamless", "robust", "facilitate").
+4. Description must be at least 5 words long.
+
+### EXAMPLE
+Input Methods:
+- add: Adds item to list
+- get: Returns item from list
+Output: {{"role": "Manages a collection of items and provides access to them."}}
+"""
         return self.gatekeeper.execute_with_feedback(
             prompt, 
             "role", 
@@ -261,3 +307,39 @@ class ComponentAnalyst:
     def _add_entry(self, ctx: ModuleContext, name: str, text: str, is_internal: bool, file_path: str):
         display = f"🔒 {name}" if is_internal else f"🔌 {name}"
         ctx.add_public_api_entry(display, text, [Claim(text, name, file_path)])
+
+    def _resolve_dependency_context(self, function_name: str, interactions: List[Dict], dep_contexts: Dict[str, ModuleContext]) -> str:
+        """
+        Finds interactions originating from `function_name` and retrieves context from dependencies.
+        """
+        context_lines = []
+        # Filter interactions where 'context' matches the function name
+        relevant = [i for i in interactions if i.get('context') == function_name]
+        
+        for interaction in relevant:
+            target_mod = interaction.get('target_module')
+            symbol = interaction.get('symbol')
+            
+            # Find the dependency context
+            # We need to match target_module (basename) to dep_contexts keys (full paths)
+            upstream_ctx = None
+            for path, ctx in dep_contexts.items():
+                if os.path.basename(path) == target_mod:
+                    upstream_ctx = ctx
+                    break
+            
+            if upstream_ctx:
+                # Try to find specific symbol in Public API
+                found_symbol = False
+                for api_name, grounded_text in upstream_ctx.public_api.items():
+                    # api_name might be "🔌 CrawlerAgent" or "CrawlerAgent"
+                    if symbol in api_name:
+                        context_lines.append(f"- Uses `{symbol}` from `{target_mod}`: {grounded_text.text}")
+                        found_symbol = True
+                        break
+                
+                # If symbol not found, fall back to Module Role
+                if not found_symbol and upstream_ctx.module_role.text:
+                    context_lines.append(f"- Uses `{target_mod}`: {upstream_ctx.module_role.text}")
+
+        return "\n".join(list(set(context_lines)))

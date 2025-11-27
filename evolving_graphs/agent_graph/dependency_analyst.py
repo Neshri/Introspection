@@ -23,54 +23,85 @@ class DependencyAnalyst:
                 child_role = upstream_ctx.module_role.text
                 
                 # --- 1. State Propagation: Extract Known Values ---
-                # We look for "Exports" or specific values in the dependency's Public API.
-                known_values = []
+                state_markers = ["stores", "defines", "configuration", "value", "data container", "enum", "constant"]
+                
+                known_state = []
+                known_logic = []
+                
                 for api_desc in upstream_ctx.public_api.values():
                     desc_lower = api_desc.text.lower()
-                    if "stores" in desc_lower or "defines" in desc_lower or "value" in desc_lower:
-                         known_values.append(f"- {api_desc.text}")
+                    if any(m in desc_lower for m in state_markers):
+                         known_state.append(f"- {api_desc.text}")
+                    else:
+                         known_logic.append(f"- {api_desc.text}")
                 
                 # --- 2. Format Context ---
-                values_context = ""
-                if known_values:
-                    values_context = "\nKnown Exported Values:\n" + "\n".join(known_values[:3])
+                state_context = ""
+                if known_state:
+                    state_context = "\nExported Data/State:\n" + "\n".join(known_state[:5])
+                    
+                logic_context = ""
+                if known_logic:
+                    logic_context = "\nExported Capabilities/Logic:\n" + "\n".join(known_logic[:5])
 
                 # --- 3. Prepare Verification Evidence ---
-                # Filter interactions for this dependency
                 used_symbols = sorted(list(set([i['symbol'] for i in interactions if i['target_module'] == dep_name])))
                 usage_context = f"Used Symbols: {', '.join(used_symbols)}" if used_symbols else "Used Symbols: (None detected)"
 
-                # This is needed so the Auditor doesn't reject specific claims like "uses granite4:3b"
-                verification_source = f"Dependency Role: {child_role}\n{values_context}\n{usage_context}"
-                
-                # --- 4. Prepare Log Label ---
+                verification_source = f"Dependency Role: {child_role}\n{state_context}\n{logic_context}\n{usage_context}"
                 label = f"Dep:{module_name}->{dep_name}"
 
-                # --- 5. Execute LLM ---
-                prompt = f"""
-                Context: Module `{module_name}` imports `{dep_name}`.
-                `{dep_name}` Role: "{child_role}"
-                Context: Module `{module_name}` imports `{dep_name}`.
-                `{dep_name}` Role: "{child_role}"
-                {values_context}
-                {usage_context}
+                # --- 5. Execute LLM (Split Analysis) ---
                 
-                Task: Why does `{module_name}` need this dependency? 
-                (If it uses a Known Exported Value, explicitly MENTION it).
+                # A. Data Usage Analysis
+                data_intent = ""
+                if known_state:
+                    # FIX: Ask for a full sentence to satisfy Gatekeeper word count (Avoids 'None' Style Fail)
+                    prompt_data = f"""
+                    Context: Module `{module_name}` imports `{dep_name}`.
+                    `{dep_name}` Exports Data:
+                    {state_context}
+                    
+                    Task: Does `{module_name}` import or use any of these constants/types?
+                    If yes, describe HOW in 1 short sentence starting with a verb.
+                    If no, state "Does not access any exported data."
+                    """
+                    data_intent = self.gatekeeper.execute_with_feedback(
+                        prompt_data, "intent", [dep_name], verification_source=verification_source, log_context=f"{label}:Data"
+                    )
                 
-                Instruction: Return a JSON object with field "intent" (Single string).
-                1. Start with a VERB.
-                2. FORBIDDEN: Do not use the name "{dep_name}" in the description.
-                3. Constraint: Description must be at least 5 words long.
-                """
+                # B. Logic Invocation Analysis
+                logic_intent = ""
+                if known_logic:
+                    # FIX: Ask for a full sentence
+                    prompt_logic = f"""
+                    Context: Module `{module_name}` imports `{dep_name}`.
+                    `{dep_name}` Exports Logic:
+                    {logic_context}
+                    {usage_context}
+                    
+                    Task: Does `{module_name}` call any of these functions/classes?
+                    If yes, describe the interaction in 1 short sentence starting with a verb.
+                    If no, state "Does not access any exported logic."
+                    """
+                    logic_intent = self.gatekeeper.execute_with_feedback(
+                        prompt_logic, "intent", [dep_name], verification_source=verification_source, log_context=f"{label}:Logic"
+                    )
+
+                # Combine & Filter the "Negative" responses
+                intents = []
                 
-                intent = self.gatekeeper.execute_with_feedback(
-                    prompt, 
-                    "intent", 
-                    forbidden_terms=[dep_name],
-                    verification_source=verification_source,
-                    log_context=label
-                )
-                explanation = f"Uses `{dep_name}` {intent}."
+                # Check for Data Intent valid response
+                if data_intent and "does not access" not in data_intent.lower() and "none" not in data_intent.lower():
+                    intents.append(data_intent)
+                    
+                # Check for Logic Intent valid response
+                if logic_intent and "does not access" not in logic_intent.lower() and "none" not in logic_intent.lower():
+                    intents.append(logic_intent)
+                
+                if not intents:
+                    explanation = f"Imports `{dep_name}`."
+                else:
+                    explanation = f"Uses `{dep_name}`: {'; '.join(intents)}."
 
             context.add_dependency_context(dep_path, explanation, [Claim(explanation, f"Import {dep_name}", file_path)])

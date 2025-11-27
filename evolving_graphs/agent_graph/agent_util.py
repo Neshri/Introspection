@@ -19,6 +19,9 @@ from .graph_analyzer import GraphAnalyzer
 # Imports the new, structured data model for the module context.
 from .summary_models import ModuleContext, Claim
 from .module_contextualizer import ModuleContextualizer
+from .map_critic import MapCritic
+from .report_renderer import ReportRenderer
+from .semantic_gatekeeper import SemanticGatekeeper
 
 # --- Type Aliases for Readability ---
 
@@ -74,16 +77,63 @@ class ProjectSummarizer:
         
         return order
 
+
+
     def generate_contexts(self) -> Dict[str, ModuleContext]:
         """
         Runs the iterative process to generate and refine the ModuleContext for each file.
-        
-        This method iterates over the modules in a stable order for a fixed number
-        of cycles or until the contexts no longer change (converge).
+        Now includes a Critic-Driven Refinement phase.
         """
+        # Cache to store the input hash for each module from the previous cycle.
+        self.context_hashes: Dict[str, str] = {}
+        
+        # Initialize Critic components
+        gatekeeper = SemanticGatekeeper()
+        critic = MapCritic(gatekeeper)
+
         for cycle in range(1, self.max_cycles + 1):
             logging.info(f"--- Starting Refinement Cycle {cycle}/{self.max_cycles} ---")
             has_changed_in_cycle = False
+            processed_count = 0
+            skipped_count = 0
+            
+            # Dictionary to store specific critique instructions for this cycle
+            # Key: module_path, Value: instruction string
+            critique_map = {}
+            
+            # --- CRITIC PHASE (Start of Cycle 2+) ---
+            if cycle > 1:
+                logging.info("Invoking MapCritic...")
+                # 1. Render current state to a temporary string/file for the critic
+                # We can use the ReportRenderer to generate the string in memory if we refactor it,
+                # or just write to a temp file and read it back.
+                temp_map_path = "TEMP_PROJECT_MAP.md"
+                renderer = ReportRenderer(self.contexts, output_file=temp_map_path)
+                renderer.render() # Writes to file
+                
+                with open(temp_map_path, "r", encoding="utf-8") as f:
+                    current_map_content = f.read()
+                
+                # 2. Get Critiques
+                critiques = critic.critique(current_map_content)
+                
+                if not critiques:
+                    logging.info("Critic found no issues. Stopping early.")
+                    break
+                
+                logging.info(f"Critic found {len(critiques)} issues.")
+                
+                # 3. Map critiques to file paths
+                # The critic returns module names (e.g. "agent_core.py"), we need full paths.
+                for mod_name, instruction in critiques:
+                    # Find path by basename
+                    for path in self.graph.keys():
+                        if os.path.basename(path) == mod_name:
+                            critique_map[path] = instruction
+                            # Force re-analysis by clearing hash
+                            if path in self.context_hashes:
+                                del self.context_hashes[path]
+                            break
 
             for path in self._processing_order:
                 # Gather the most recent contexts of the current module's dependencies.
@@ -93,46 +143,73 @@ class ProjectSummarizer:
                     if dep in self.contexts
                 }
                 
+                # --- Smart Caching Logic ---
+                # 1. Calculate Input Hash
+                upstream_state_str = ""
+                upstream_logic_str = ""
+                
+                upstream_signature = []
+                for dep_ctx in dep_contexts.values():
+                    if dep_ctx:
+                        for text in dep_ctx.public_api.values():
+                            upstream_signature.append(text.text)
+                
+                upstream_hash_input = "".join(sorted(upstream_signature))
+                source_code = self.graph.get(path, {}).get("source_code", "")
+                
+                # Include critique in the hash! If critique changes, we must re-run.
+                critique_instruction = critique_map.get(path)
+                critique_hash = str(critique_instruction) if critique_instruction else ""
+                
+                # Final Input Hash
+                current_input_hash = str(hash(source_code + upstream_hash_input + critique_hash))
+                
+                # 2. Check Cache
+                if path in self.context_hashes and self.context_hashes[path] == current_input_hash:
+                    skipped_count += 1
+                    continue
+
+                # 3. Process Module
                 old_context = self.contexts.get(path)
                 
                 try:
                     # Delegate the actual context generation to the placeholder function.
-                    new_context = _create_module_context(path, self.graph, dep_contexts)
+                    # Pass the critique instruction if it exists
+                    new_context = _create_module_context(path, self.graph, dep_contexts, critique_instruction)
                 except NotImplementedError:
-                    # If the underlying logic is not implemented, create a default,
-                    # empty ModuleContext object to allow the system to function.
                     new_context = ModuleContext(file_path=path)
 
-                # If the context has been updated, store it and flag that a change occurred.
+                # 4. Update Cache & State
+                self.context_hashes[path] = current_input_hash
+                processed_count += 1
+
                 if new_context != old_context:
                     has_changed_in_cycle = True
                     self.contexts[path] = new_context
             
-            # If a full cycle completes with no changes, the contexts have stabilized.
-            if not has_changed_in_cycle:
+            logging.info(f"Cycle {cycle} Stats: Processed {processed_count}, Skipped {skipped_count} (Cached)")
+
+            if not has_changed_in_cycle and not critique_map:
                 logging.info(f"Module contexts converged after cycle {cycle}. Stopping early.")
                 break
         
         return self.contexts
 
-def _create_module_context(path: str, graph: ProjectGraph, dep_contexts: Dict[str, ModuleContext]) -> ModuleContext:
-    
+def _create_module_context(path: str, graph: ProjectGraph, dep_contexts: Dict[str, ModuleContext], critique_instruction: str = None) -> ModuleContext:
     """
     Generates a ModuleContext for a given module path using the provided graph and dependency contexts.
-
-    This function serves as a wrapper for the actual context generation logic, which is delegated to the ModuleContextualizer class.
-    It logs the start of context generation for the module and ensures that the resulting ModuleContext has a valid file path.
     """
     logging.info(f"Generating context for module: {os.path.basename(path)}")
     mc = ModuleContextualizer(path, graph, dep_contexts)
-    context = mc.contextualize_module()
+    context = mc.contextualize_module(critique_instruction)
     # Ensure the ModuleContext has the file path for proper representation
     if hasattr(context, 'file_path') and context.file_path is None:
         context.file_path = path
     elif not hasattr(context, 'file_path'):
-        # If the contextualizer returns a ModuleContext without file_path support
         context = ModuleContext(file_path=path)
     return context
+
+
 
 
 def project_pulse(target_file_path: str) -> Dict[str, ModuleContext]:

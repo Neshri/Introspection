@@ -99,17 +99,21 @@ class SemanticGatekeeper:
         # 1. Fluff Check
         found_words = [w for w in BANNED_ADJECTIVES if w in text_lower]
         if found_words:
-            return False, f"Critique: Remove marketing words: {found_words}. Use technical terms."
+            return False, f"Critique: You used banned marketing words: {found_words}. REWRITE the sentence to describe the technical mechanism. DO NOT mention that you are removing the words. DO NOT say 'without using {found_words[0]}'. Just write the technical description."
         
         # 2. Tautology Check
         for term in forbidden_terms:
             if len(term) < 3: continue 
             pattern = r'\b' + re.escape(term.lower()) + r'\b'
             if re.search(pattern, text_lower):
-                return False, f"Critique: Do not use the word '{term}' in the definition."
+                return False, f"Critique: Do not use the word '{term}' in the definition. Do not even mention that you are avoiding it."
 
         # 3. Density Check (RELAXED)
         # Allow 2 words if it's technically dense (e.g. "Parses arguments")
+        # EXCEPTION: Allow "PASS" as a standard success token
+        if text_lower == "pass":
+            return True, "Valid"
+
         if len(text.split()) < 2:
             return False, "Critique: Too short. Explain the mechanism (Verb + Object)."
             
@@ -125,6 +129,11 @@ class SemanticGatekeeper:
             end = clean.rfind("}") + 1
             if start == -1: return None, "No JSON object found"
             clean = clean[start:end]
+            
+            # Fix: Handle LLM hallucinating string concatenation (e.g. "A" + "B")
+            if '"+"' in clean or "' + '" in clean or '" + "' in clean:
+                 clean = clean.replace('" + "', '').replace("' + '", '').replace('"+"', '')
+
             data = json.loads(clean)
             val = data.get(key, "")
             if isinstance(val, str): return val.strip(), None

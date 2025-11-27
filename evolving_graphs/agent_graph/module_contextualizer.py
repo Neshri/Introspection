@@ -27,7 +27,7 @@ class ModuleContextualizer:
         # Hard Data: Who calls me? (Calculated once at init)
         self.usage_map = self._build_usage_map()
 
-    def contextualize_module(self) -> ModuleContext:
+    def contextualize_module(self, critique_instruction: str = None) -> ModuleContext:
         if "error" in self.data:
             self.context.add_alert(Alert("AnalysisError", self.data['error'], "GraphAnalyzer"))
             return self.context
@@ -37,7 +37,9 @@ class ModuleContextualizer:
             self.context, 
             self.data.get('entities', {}), 
             self.file_path,
-            usage_map=self.usage_map
+            usage_map=self.usage_map,
+            interactions=self.data.get('interactions', []),
+            dep_contexts=self.dep_contexts
         )
 
         self.dep_analyst.analyze_dependencies(
@@ -49,7 +51,7 @@ class ModuleContextualizer:
             interactions=self.data.get('interactions', [])
         )
 
-        self._pass_systemic_synthesis()
+        self._pass_systemic_synthesis(critique_instruction)
         self._pass_alerts()
         
         return self.context
@@ -80,22 +82,45 @@ class ModuleContextualizer:
         
         return usage_map
 
-    def _gather_upstream_knowledge(self) -> str:
-        knowledge = []
+    def _gather_upstream_knowledge(self) -> Dict[str, str]:
+        """
+        Categorizes upstream dependencies into State (Data) and Logic (Capabilities).
+        Returns a dictionary with formatted strings for each category.
+        """
+        state_knowledge = []
+        logic_knowledge = []
+        
+        # Keywords that strongly suggest data/state
+        state_markers = ["stores", "defines", "configuration", "value", "data container", "enum", "constant"]
+        
         for dep_path, dep_ctx in self.dep_contexts.items():
             if not dep_ctx: continue
             dep_name = os.path.basename(dep_path)
+            
             for api_name, grounded_text in dep_ctx.public_api.items():
                 desc = grounded_text.text.lower()
-                # Filter for relevant state definitions to keep context focused but accurate
-                if "stores" in desc or "defines" in desc or "configuration" in desc or "value" in desc:
-                    knowledge.append(f"- {dep_name} exports `{api_name}`: {grounded_text.text}")
-        return chr(10).join(knowledge)
+                
+                # Classification: Is it State or Logic?
+                is_state = any(marker in desc for marker in state_markers)
+                
+                entry = f"- {dep_name} exports `{api_name}`: {grounded_text.text}"
+                
+                if is_state:
+                    state_knowledge.append(entry)
+                else:
+                    logic_knowledge.append(entry)
+                    
+        return {
+            "state": chr(10).join(state_knowledge),
+            "logic": chr(10).join(logic_knowledge)
+        }
 
-    def _pass_systemic_synthesis(self):
+    def _pass_systemic_synthesis(self, critique_instruction: str = None):
         local_caps = [f"- {k}: {v.text}" for k, v in self.context.public_api.items()]
-        local_caps = [f"- {k}: {v.text}" for k, v in self.context.public_api.items()]
-        upstream_knowledge = self._gather_upstream_knowledge()
+        upstream_data = self._gather_upstream_knowledge()
+        
+        upstream_state = upstream_data["state"]
+        upstream_logic = upstream_data["logic"]
         
         # Add External Imports to Context
         external_imports = sorted(list(self.data.get('external_imports', [])))
@@ -116,33 +141,53 @@ class ModuleContextualizer:
             self.context.set_module_role(role + impact_footer, [Claim(role, "Archetype", self.file_path)])
             return
         
+        critique_section = ""
+        if critique_instruction:
+            critique_section = f"\n### CRITIQUE FEEDBACK\nThe previous analysis was criticized. Please address this specific instruction:\n**{critique_instruction}**\n"
+
         prompt = f"""
-        Task: Synthesize the High-Level Purpose of `{self.module_name}`.
-        Archetype: {self.archetype.value}
-        
-        Local Capabilities:
-        {chr(10).join(local_caps)}
-        
-        Upstream Context (Knowledge from Dependencies):
-        Upstream Context (Knowledge from Dependencies):
-        {upstream_knowledge if upstream_knowledge else "(None)"}
-        
-        External Dependencies (Imports):
-        {imports_context}
-        
-        Instruction: Return a JSON object with field "role".
-        1. Value MUST be a single string starting with a VERB (e.g. "Manages", "Analyzes").
-        2. FORBIDDEN: Do not use the module name "{self.module_name}" in the description.
-        3. FORBIDDEN: Do not use words like "efficient", "seamless", "robust", "facilitate".
-        4. Describe the BUSINESS LOGIC directly.
-        5. If this module uses a specific configuration (like a model name found in Upstream Context), MENTION IT.
-        """
+### ROLE
+You are a Technical System Architect.
+
+### CONTEXT
+Archetype: {self.archetype.value}
+
+Local Capabilities:
+{chr(10).join(local_caps)}
+
+Upstream State (Data/Config):
+{upstream_state if upstream_state else "(None)"}
+
+Upstream Logic (Collaborators):
+{upstream_logic if upstream_logic else "(None)"}
+
+External Imports:
+{imports_context}
+{critique_section}
+### TASK
+Generate a JSON object with a "role" field that synthesizes the **Systemic Role** of `{self.module_name}`.
+1. Start with a VERB (e.g. "Manages", "Orchestrates", "Analyzes").
+2. Describe the **Systemic Contract**:
+   - If it interacts with **Upstream Logic**, describe the functional delegation (e.g. "Delegates parsing to X").
+   - If it manages **Upstream State**, describe the data lifecycle.
+3. If this module uses a specific configuration (found in Upstream State), MENTION IT.
+
+### REQUIREMENTS
+1. Output strictly valid JSON with key "role".
+2. Do NOT use the module name "{self.module_name}".
+3. Do NOT use marketing adjectives (e.g. "efficient", "seamless", "robust"). Do not mention that you are avoiding them.
+4. Description must be at least 5 words long.
+
+### EXAMPLE
+Input: (Context about a database module)
+Output: {{"role": "Persists user data to disk and manages connection pooling."}}
+"""
         
         # Pass the SKELETON + WORKING MEMORY for verification (Recursive Verification).
         skeleton = self.comp_analyst.generate_module_skeleton(self.data.get('source_code', ''))
         working_memory_str = "\n".join(getattr(self, 'working_memory', []))
         
-        verification_evidence = f"--- MODULE SKELETON ---\n{skeleton}\n\n--- CHILD SUMMARIES (Working Memory) ---\n{working_memory_str}\n\n--- UPSTREAM ---\n{upstream_knowledge}\n\n--- IMPORTS ---\n{imports_context}"
+        verification_evidence = f"--- MODULE SKELETON ---\n{skeleton}\n\n--- CHILD SUMMARIES (Working Memory) ---\n{working_memory_str}\n\n--- UPSTREAM STATE ---\n{upstream_state}\n\n--- UPSTREAM LOGIC ---\n{upstream_logic}\n\n--- IMPORTS ---\n{imports_context}"
         
         context_label = f"SystemicSynthesis:{self.module_name}"
         
