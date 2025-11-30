@@ -15,90 +15,39 @@ The `agent_graph` translates natural language goals into executable Python code 
 
 ## Architecture Overview
 
-The Genome adheres to strict architectural rules designed for AI comprehension and autonomous evolution:
-
-### Core Principles
-- **Shallow Architecture**: All modules reside in root or direct subdirectories only
-- **Semantic Naming**: `domain_responsibility.py` convention for module files
-- **Designated Entry Points**: Each Graph has exactly one `[graph_name]_main.py` file
-- **Graph Decoupling**: No cross-Graph imports; interaction via subprocess execution only
-- **Strictly Relative Paths**: All paths relative to module location, no upward traversal beyond `/evolving_graphs/`
-- **Intra-Graph Relative Imports**: Within a Graph, imports must be relative with mandatory explanatory comments
-- **Acyclic Dependencies**: Import graphs must be Directed Acyclic Graphs (DAGs)
-- **Role Isolation**: Intelligence services cannot directly interact; all data flows through orchestrators
-- **Orchestrator Privilege**: Only designated classes (e.g., PipelineRunner) may hold instances of multiple roles
-- **DRY Enforcement**: Extract 5+ line duplications to `_utils.py` modules
-- **Empty `__init__.py`**: All initialization files must remain empty
-
-### Execution and Evolution
-- **Recursive Evolution Protocol**: Child Genomes created in `candidates/` subdirectories
-- **Safe Sandboxing**: Isolated execution with resource limits (30s CPU, temporary directories)
-- **Memory Integration**: Persistent learning with token limits (1000 per memory) and decay
-- **State Persistence**: Session management across restarts
+The Genome adheres to **Scientific Standards** designed for objective verification and autonomous evolution:
+- **Directed Acyclic Graph (DAG)**: Strictly acyclic dependencies.
+- **Shallow Architecture**: Max depth of 1. No deep nesting.
+- **Strict Isolation**: No cross-graph imports.
+- **Atomic Modules**: Max 3000 tokens per module.
+- **Code is Truth**: Documentation is derived from code structure, not comments.
 
 ## Graphs Description
 
 ### Agent Graph (`agent_graph/`)
-**Entry Point**: `agent_graph_main.py`  
-**Purpose**: Autonomous AI agent implementing iterative code generation pipeline for natural language goals.
+**Entry Point**: `agent_graph_main.py`
+**Purpose**: An autonomous "Crawler" agent that explores, analyzes, and evolves the codebase.
 
 #### Core Infrastructure
-- `agent_core.py`: Agent class for goal validation (10-500 chars, no dangerous patterns), persistence, and execution loops
-- `agent_config.py`: Centralized configuration for LLM models, timeouts, and system parameters
-- `pipeline_pipeline_runner.py`: Main orchestrator implementing scout→planner→executor→verifier→commit pipeline
-- `memory_interface.py`: External persistent memory system (ChromaDB-based, outside Genome) with token limits and decay mechanisms
+- `agent_core.py`: The `CrawlerAgent` that orchestrates the analysis loop.
+- `agent_config.py`: Centralized configuration (Models, Limits).
+- `agent_util.py`: `ProjectSummarizer` and `project_pulse` for graph analysis.
+- `memory_core.py`: Persistent memory management (ChromaDB wrapper).
 
-#### Intelligence Services (Role Isolation Pattern)
-- `intelligence_project_scout.py`: Scout class exploring project structure and relevance via keyword analysis and LLM evaluation
-- `intelligence_plan_generator.py`: Planner class creating strategic implementation plans from scout data
-- `intelligence_llm_service.py`: Standardized Ollama integration for AI model interactions
-- `intelligence_code_executor.py`: Safe code generation with iterative refinement
-- `intelligence_llm_critic.py`: Code quality assessment and critique
-- `intelligence_prompt_tracker.py`: Learning from successful prompt patterns
-
-#### Execution and Safety
-- `pipeline_pipeline_executor.py`: Code modification and application logic
-- `pipeline_code_verifier.py`: Architecture compliance and syntax validation
-- Sandbox system (`sandbox_*.py`): Isolated execution with resource limits and temporary directories
-
-#### Utilities
-- `utils_state_persistence.py`: Session management across restarts
-- `utils_collect_modules.py`: Project structure analysis
-- `agent_backpack_formatter.py`: Context preparation for LLM interactions
+#### Introspection Engine (The Eyes)
+A subsystem that generates the "Objective Truth" Project Map (`PROJECT_MAP.md`).
+- `graph_analyzer.py`: Statically analyzes code to build the dependency graph (AST-based).
+- `module_classifier.py`: Classifies modules by structural role (Service vs Data).
+- `module_contextualizer.py`: Translates code logic into reasoning-ready English.
+- `report_renderer.py`: Renders the map, grouped by Archetype.
+- `summary_models.py`: Data structures for Claims and Context.
+- `component_analyst.py`: Detailed analysis of classes and functions.
+- `dependency_analyst.py`: Analysis of module interactions.
+- `map_critic.py`: Self-correction loop for documentation quality.
 
 ### Linter Graph (`linter_graph/`)
-**Entry Point**: `linter_graph_main.py`  
-**Purpose**: Automated compliance checker ensuring adherence to shallow, AI-friendly architectural rules.
-
-#### Rule Validation Systems
-- `linter_rules_recovery.py`: Architectural recovery protocol implementation
-- `linter_rules_compliance.py`: Final compliance verification
-- `linter_rules_crossgraph.py`: Cross-Graph import validation
-- `linter_rules_duplication.py`: DRY enforcement and duplication detection
-- `linter_rules_entrypoints.py`: Designated entry point validation
-- `linter_rules_filesize.py`: 3000 token limit enforcement
-- `linter_rules_importcomments.py`: Mandatory import signpost validation
-- `linter_rules_importcompliance.py`: Intra-Graph import structure compliance
-- `linter_rules_initfiles.py`: Empty `__init__.py` enforcement
-- `linter_rules_orchestrator.py`: Orchestrator privilege pattern validation
-
-#### Core Utilities
-- `linter_utils_core.py`: Shared utilities for comment detection and import analysis
-
-## AI-Friendly Features
-
-The Genome is explicitly designed for AI comprehension and autonomous operation:
-
-- **Explicit Structure**: Clear naming, directory layout, and entry points enable "crawlable" codebase exploration
-- **Import Signposts**: Mandatory same-line comments explain every relative import's purpose
-- **Modular Roles**: Intelligence services are isolated, single-responsibility classes
-- **Comprehensive Linting**: Automated validation ensures consistent, rule-compliant code
-- **Memory Learning**: Performance-based feedback with decay and pruning improves autonomous performance
-- **Pipeline Orchestration**: Linear data flow prevents complex interdependencies
-- **Sandbox Safety**: Protected execution prevents system damage during code generation
-- **Token Limits**: File size constraints ensure focused responsibilities and manageability
-- **Role Isolation**: Data flows through orchestrators, enabling clear responsibility boundaries
-- **Semantic Naming**: Domain-driven filenames provide immediate context understanding
+**Entry Point**: `linter_graph_main.py`
+**Purpose**: Automated enforcement of Structural Invariants (DAG, Size, Depth).
 
 ## Setup and Installation
 
@@ -142,15 +91,23 @@ The Genome is explicitly designed for AI comprehension and autonomous operation:
 
 ### Running the Agent Graph
 
-Execute the agent with a natural language goal:
+The agent is designed to be run via the `run_graphs.py` orchestrator, which handles sandboxing and execution.
 
-```bash
-python -m evolving_graphs.agent_graph.agent_graph_main --goal "Your programming goal here"
+```python
+# run_graphs.py
+from evolving_graphs.agent_graph.agent_graph_main import main
+from evolving_graphs.sandboxer_graph.sandboxer_graph_main import main as sandboxer_main
+
+# 1. Create a sandbox
+sandbox_path = sandboxer_main("agent_graph")
+
+# 2. Run the agent in the sandbox
+agent_result = main("Your Goal Here", sandbox_path)
 ```
 
-Example:
+To run it directly from the command line (for testing):
 ```bash
-python -m evolving_graphs.agent_graph.agent_graph_main --goal "Write a Python function to calculate pi using Monte Carlo simulation with 10000 samples"
+python -m evolving_graphs.agent_graph.agent_graph_main --goal "Your Goal" --target_folder "/path/to/target"
 ```
 
 The agent will:

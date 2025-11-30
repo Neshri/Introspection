@@ -9,7 +9,7 @@ generating a detailed "Module Context Map" for an AI agent.
 import logging
 import os
 from collections import deque
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Tuple
 
 # --- Local Project Imports ---
 
@@ -79,7 +79,7 @@ class ProjectSummarizer:
 
 
 
-    def generate_contexts(self) -> Dict[str, ModuleContext]:
+    def generate_contexts(self) -> Tuple[Dict[str, ModuleContext], List[str]]:
         """
         Runs the iterative process to generate and refine the ModuleContext for each file.
         Now includes a Critic-Driven Refinement phase.
@@ -193,7 +193,7 @@ class ProjectSummarizer:
                 logging.info(f"Module contexts converged after cycle {cycle}. Stopping early.")
                 break
         
-        return self.contexts
+        return self.contexts, self._processing_order
 
 def _create_module_context(path: str, graph: ProjectGraph, dep_contexts: Dict[str, ModuleContext], critique_instruction: str = None) -> ModuleContext:
     """
@@ -212,7 +212,7 @@ def _create_module_context(path: str, graph: ProjectGraph, dep_contexts: Dict[st
 
 
 
-def project_pulse(target_file_path: str) -> Dict[str, ModuleContext]:
+def project_pulse(target_file_path: str) -> Tuple[Dict[str, ModuleContext], List[str]]:
     """
     Analyzes a Python project and generates a detailed context map for each module.
 
@@ -220,7 +220,7 @@ def project_pulse(target_file_path: str) -> Dict[str, ModuleContext]:
     """
     if not os.path.isfile(target_file_path):
         logging.error(f"Error: Target path '{target_file_path}' is not a valid file.")
-        return {}
+        return {}, []
     
     logging.info(f"Starting project analysis from root: {target_file_path}")
     analyzer = GraphAnalyzer(target_file_path)
@@ -228,7 +228,6 @@ def project_pulse(target_file_path: str) -> Dict[str, ModuleContext]:
     
     # Instantiate and run the summarizer to orchestrate the main logic.
     summarizer = ProjectSummarizer(project_graph)
-    final_contexts = summarizer.generate_contexts()
+    final_contexts, processing_order = summarizer.generate_contexts()
     
-    logging.info("Project context map generation complete.")
-    return final_contexts
+    return final_contexts, processing_order

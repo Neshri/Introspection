@@ -20,6 +20,7 @@ class ModuleContextualizer:
         self.gatekeeper = SemanticGatekeeper()
         self.classifier = ModuleClassifier(self.module_name, self.data)
         self.archetype = self.classifier.classify()
+        self.context.archetype = self.archetype.value # Store for Renderer
         
         self.comp_analyst = ComponentAnalyst(self.gatekeeper)
         self.dep_analyst = DependencyAnalyst(self.gatekeeper)
@@ -145,6 +146,36 @@ class ModuleContextualizer:
         if critique_instruction:
             critique_section = f"\n### CRITIQUE FEEDBACK\nThe previous analysis was criticized. Please address this specific instruction:\n**{critique_instruction}**\n"
 
+        # --- ARCHETYPE-AWARE PROMPTING (Objective Truth) ---
+        # We tailor the instructions to prevent "Hallucinated Agency"
+        
+        archetype_instructions = ""
+        if self.archetype == ModuleArchetype.DATA_MODEL:
+            archetype_instructions = """
+            CONSTRAINT: You are describing a PASSIVE data structure. 
+            - Use verbs like 'Defines', 'Stores', 'Encapsulates', 'Represent'.
+            - Do NOT use active verbs like 'Orchestrates', 'Manages', 'Controls'.
+            - Do NOT imply this module does anything on its own. It is just data.
+            """
+        elif self.archetype == ModuleArchetype.UTILITY:
+            archetype_instructions = """
+            CONSTRAINT: You are describing a PASSIVE utility library.
+            - Use verbs like 'Provides', 'Offers', 'Contains'.
+            - Focus on the *capabilities* it offers to others.
+            """
+        elif self.archetype == ModuleArchetype.ENTRY_POINT:
+             archetype_instructions = """
+            CONSTRAINT: You are describing an ENTRY POINT.
+            - Use verbs like 'Orchestrates', 'Initializes', 'Runs'.
+            - Focus on the high-level goal it executes.
+            """
+        else: # Service
+             archetype_instructions = """
+            CONSTRAINT: You are describing an ACTIVE service or agent.
+            - Use verbs like 'Manages', 'Analyzes', 'Generates'.
+            - Focus on its responsibility in the system.
+            """
+
         prompt = f"""
 ### ROLE
 You are a Technical System Architect.
@@ -166,11 +197,8 @@ External Imports:
 {critique_section}
 ### TASK
 Generate a JSON object with a "role" field that synthesizes the **Systemic Role** of `{self.module_name}`.
-1. Start with a VERB (e.g. "Manages", "Orchestrates", "Analyzes").
-2. Describe the **Systemic Contract**:
-   - If it interacts with **Upstream Logic**, describe the functional delegation (e.g. "Delegates parsing to X").
-   - If it manages **Upstream State**, describe the data lifecycle.
-3. If this module uses a specific configuration (found in Upstream State), MENTION IT.
+
+{archetype_instructions}
 
 ### REQUIREMENTS
 1. Output strictly valid JSON with key "role".

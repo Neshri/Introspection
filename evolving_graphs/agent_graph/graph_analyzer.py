@@ -152,18 +152,24 @@ class CodeEntityVisitor(cst.CSTVisitor):
         if self.current_context:
             self.current_context.pop()
         
-    def _record_interaction(self, symbol: str):
+    def _record_interaction(self, symbol: str, node: cst.CSTNode):
         if symbol in self.import_map:
             target_module_path = self.import_map[symbol]
             context = ".".join(self.current_context) or "module_level"
-            self.cross_module_interactions.append({"context": context, "target_module": os.path.basename(target_module_path), "symbol": symbol})
+            snippet = self.module_node.code_for_node(node)
+            self.cross_module_interactions.append({
+                "context": context, 
+                "target_module": os.path.basename(target_module_path), 
+                "symbol": symbol,
+                "snippet": snippet
+            })
 
     def visit_Call(self, node: cst.Call) -> None:
-        if isinstance(node.func, cst.Name): self._record_interaction(node.func.value)
+        if isinstance(node.func, cst.Name): self._record_interaction(node.func.value, node)
 
     def visit_Name(self, node: cst.Name) -> None:
         if self.current_context and self.current_context[-1] == node.value: return
-        self._record_interaction(node.value)
+        self._record_interaction(node.value, node)
 
 class GraphAnalyzer:
     def __init__(self, root_path: str):

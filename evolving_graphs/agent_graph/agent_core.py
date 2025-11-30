@@ -5,6 +5,8 @@ from .agent_util import project_pulse
 from .summary_models import ModuleContext
 # ADDED: Import the renderer
 from .report_renderer import ReportRenderer
+from .map_synthesizer import MapSynthesizer
+from .semantic_gatekeeper import SemanticGatekeeper
 
 class CrawlerAgent:
     def __init__(self, goal: str, target_root: str):
@@ -18,10 +20,15 @@ class CrawlerAgent:
         print(f"Running CrawlerAgent for goal: {self.goal} and target root: {self.target_root}")
         
         # 1. Analyze the codebase
-        project_map = project_pulse(self.target_root)
+        project_map, processing_order = project_pulse(self.target_root)
         
-        # 2. Render the report instead of printing raw objects
-        renderer = ReportRenderer(project_map)
+        # 2. Synthesize System Architecture
+        gatekeeper = SemanticGatekeeper()
+        synthesizer = MapSynthesizer(gatekeeper)
+        system_summary = synthesizer.synthesize(project_map, processing_order)
+        
+        # 3. Render the report instead of printing raw objects
+        renderer = ReportRenderer(project_map, system_summary=system_summary)
         renderer.render()
         
         current_turn = 0

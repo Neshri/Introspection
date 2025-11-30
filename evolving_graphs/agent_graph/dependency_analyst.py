@@ -23,7 +23,7 @@ class DependencyAnalyst:
                 child_role = upstream_ctx.module_role.text
                 
                 # --- 1. State Propagation: Extract Known Values ---
-                state_markers = ["stores", "defines", "configuration", "value", "data container", "enum", "constant"]
+                state_markers = ["stores", "defines", "configuration", "value", "data container", "enum", "constant", "variable", "setting", "limit", "threshold"]
                 
                 known_state = []
                 known_logic = []
@@ -46,7 +46,16 @@ class DependencyAnalyst:
 
                 # --- 3. Prepare Verification Evidence ---
                 used_symbols = sorted(list(set([i['symbol'] for i in interactions if i['target_module'] == dep_name])))
-                usage_context = f"Used Symbols: {', '.join(used_symbols)}" if used_symbols else "Used Symbols: (None detected)"
+                
+                # Extract and deduplicate snippets
+                raw_snippets = [i.get('snippet', '') for i in interactions if i['target_module'] == dep_name and i.get('snippet')]
+                unique_snippets = sorted(list(set(raw_snippets)))
+                
+                snippet_text = ""
+                if unique_snippets:
+                    snippet_text = "\nUsage Snippets:\n" + "\n".join([f"- {s}" for s in unique_snippets])
+                
+                usage_context = f"Used Symbols: {', '.join(used_symbols)}{snippet_text}" if used_symbols else "Used Symbols: (None detected)"
 
                 verification_source = f"Dependency Role: {child_role}\n{state_context}\n{logic_context}\n{usage_context}"
                 label = f"Dep:{module_name}->{dep_name}"
@@ -63,11 +72,13 @@ class DependencyAnalyst:
                     {state_context}
                     
                     Task: Does `{module_name}` import or use any of these constants/types?
-                    If yes, describe HOW in 1 short sentence starting with a verb.
+                    If yes, describe the MECHANISM and INTENT in 1 short sentence starting with a verb.
+                    Example: "Retrieves the MAX_RETRIES constant to configure the connection timeout."
+                    
                     If no, state "Does not access any exported data."
                     """
                     data_intent = self.gatekeeper.execute_with_feedback(
-                        prompt_data, "intent", [dep_name], verification_source=verification_source, log_context=f"{label}:Data"
+                        prompt_data, "intent", [dep_name, "uses functionality", "utilizes"], verification_source=verification_source, log_context=f"{label}:Data"
                     )
                 
                 # B. Logic Invocation Analysis
@@ -80,12 +91,14 @@ class DependencyAnalyst:
                     {logic_context}
                     {usage_context}
                     
-                    Task: Does `{module_name}` call any of these functions/classes?
-                    If yes, describe the interaction in 1 short sentence starting with a verb.
+                    Task: Does `{module_name}` call or use any of these functions/classes/logic?
+                    If yes, describe the MECHANISM and INTENT in 1 short sentence starting with a verb.
+                    Example: "Calls the `connect` function to establish a secure websocket link."
+                    
                     If no, state "Does not access any exported logic."
                     """
                     logic_intent = self.gatekeeper.execute_with_feedback(
-                        prompt_logic, "intent", [dep_name], verification_source=verification_source, log_context=f"{label}:Logic"
+                        prompt_logic, "intent", [dep_name, "uses functionality", "utilizes"], verification_source=verification_source, log_context=f"{label}:Logic"
                     )
 
                 # Combine & Filter the "Negative" responses

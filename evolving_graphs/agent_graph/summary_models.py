@@ -48,6 +48,7 @@ class ModuleContext:
     """
     def __init__(self, file_path: str = None):
         self.file_path = file_path
+        self.archetype: str = "" # Added for Architectural Grouping
         self.module_role: GroundedText = GroundedText()
         self.key_dependencies: Dict[str, GroundedText] = {}
         self.key_dependents: Dict[str, GroundedText] = {}

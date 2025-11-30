@@ -36,17 +36,35 @@ class ModuleClassifier:
             except:
                 pass
 
-        if classes > 0 and funcs == 0 and deps == 0:
-            return ModuleArchetype.DATA_MODEL
-        
-        if classes == 0 and funcs > 0 and deps == 0:
-            return ModuleArchetype.UTILITY
+        # Check for "Behavior" (Public Methods)
+        has_behavior = False
+        classes_map = entities.get('classes', {})
+        for class_name, class_data in classes_map.items():
+            methods = class_data.get('methods', [])
+            for method in methods:
+                # Extract method name from signature "def name(...)"
+                m_name = method['signature'].split('(')[0].replace('def ', '').strip()
+                # If it's a public method (not starting with _), it's likely behavior
+                if not m_name.startswith('_'):
+                    has_behavior = True
+                    break
+            if has_behavior: break
 
         if deps == 0:
-            if funcs == 0 and classes == 0 and has_globals:
-                return ModuleArchetype.CONFIGURATION
             if classes > 0:
+                # If it has public methods, it's a Service (Logic), not just Data
+                if has_behavior:
+                    return ModuleArchetype.SERVICE
                 return ModuleArchetype.DATA_MODEL
-            return ModuleArchetype.UTILITY
+            
+            if funcs > 0:
+                return ModuleArchetype.UTILITY
+                
+            if has_globals:
+                return ModuleArchetype.CONFIGURATION
+                
+            return ModuleArchetype.UTILITY # Fallback
+
+        return ModuleArchetype.SERVICE
 
         return ModuleArchetype.SERVICE
