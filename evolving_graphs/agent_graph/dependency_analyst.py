@@ -42,15 +42,15 @@ class DependencyAnalyst:
                 used_symbols = sorted(list(set([i['symbol'] for i in interactions if i['target_module'] == dep_name])))
                 
                 # --- 2. Smart Context Retrieval (Relevance Filtering) ---
-                relevant_state = []
-                relevant_logic = []
+                # REMOVED: state_markers list and artificial separation of Data/Logic.
+                
+                relevant_entries = []
                 general_context = []
-
-                state_markers = ["stores", "defines", "configuration", "value", "data container", "enum", "constant", "variable", "setting", "limit", "threshold"]
 
                 for api_name, grounded_text in upstream_ctx.public_api.items():
                     desc = self._sanitize_context(grounded_text.text)
                     
+                    # Check if the API entry is relevant to the symbols we actually use
                     is_used = any(
                         sym == api_name or 
                         f" {sym}" in api_name or 
@@ -61,26 +61,20 @@ class DependencyAnalyst:
                     entry = f"- {desc}"
                     
                     if is_used:
-                        if any(m in desc.lower() for m in state_markers):
-                            relevant_state.append(entry)
-                        else:
-                            relevant_logic.append(entry)
+                        relevant_entries.append(entry)
                     else:
                         if len(general_context) < 3: 
                             general_context.append(entry)
 
                 # --- 3. Format Context Strings ---
-
-                state_context = ""
-                if relevant_state:
-                    state_context = "\nReferenced Data:\n" + "\n".join([clean_ref(s) for s in relevant_state])
+                # Unified context block to prevent leading the witness.
                 
-                logic_context = ""
-                if relevant_logic:
-                    logic_context = "\nReferenced Logic:\n" + "\n".join([clean_ref(s) for s in relevant_logic])
-                    
-                if not relevant_state and not relevant_logic and general_context:
-                    logic_context += "\nGeneral Exports (Unused):\n" + "\n".join([clean_ref(s) for s in general_context])
+                upstream_context_str = ""
+                if relevant_entries:
+                    upstream_context_str = "\nRelevant Upstream Context:\n" + "\n".join([clean_ref(s) for s in relevant_entries])
+                elif general_context:
+                    # Fallback: If we can't match symbols perfectly, show general exports so the LLM isn't flying blind.
+                    upstream_context_str = "\nGeneral Exports (Unused/Unmatched):\n" + "\n".join([clean_ref(s) for s in general_context])
 
                 # --- 4. Prepare Snippet Evidence ---
                 raw_snippets = [i.get('snippet', '') for i in interactions if i['target_module'] == dep_name and i.get('snippet')]
@@ -92,32 +86,26 @@ class DependencyAnalyst:
                 
                 usage_context = f"Used Symbols: {', '.join(used_symbols)}{snippet_text}" if used_symbols else "Used Symbols: (None detected)"
 
-                verification_source = f"Dependency Role: {child_role}\n{state_context}\n{logic_context}\n{usage_context}"
+                # Unified verification source
+                verification_source = f"Dependency Role: {child_role}\n{upstream_context_str}\n{usage_context}"
                 label = f"Dep:{module_name}->{dep_name}"
 
                 # --- 5. Execute Plan-and-Solve Analysis ---
                 intents = []
                 
                 if used_symbols:
-                    # A. Data Usage Analysis
-                    if relevant_state:
-                        intent = self.task_executor.solve_complex_task(
-                            main_goal=f"Determine strictly how `{module_name}` uses the Data/Constants from `{dep_name}` based on the snippets.",
-                            context_data=verification_source,
-                            log_label=f"{label}:Data"
-                        )
-                        if intent and "no evidence" not in intent.lower() and "unverified" not in intent.lower():
-                            intents.append(intent)
-
-                    # B. Logic Usage Analysis
-                    if relevant_logic:
-                        intent = self.task_executor.solve_complex_task(
-                            main_goal=f"Determine strictly how `{module_name}` uses the Logic/Capabilities of `{dep_name}` based on the snippets.",
-                            context_data=verification_source,
-                            log_label=f"{label}:Logic"
-                        )
-                        if intent and "no evidence" not in intent.lower() and "unverified" not in intent.lower():
-                            intents.append(intent)
+                    # Single, neutral prompt. 
+                    # We ask the LLM to determine the nature of the usage (Data vs Logic) based on evidence,
+                    # rather than forcing it to fill a specific bucket.
+                    intent = self.task_executor.solve_complex_task(
+                        main_goal=f"Analyze the snippets to determine strictly how `{module_name}` utilizes `{dep_name}`. Specify if it accesses data, invokes logic, or inherits classes.",
+                        context_data=verification_source,
+                        log_label=f"{label}:Usage"
+                    )
+                    
+                    # Filter out non-answers
+                    if intent and "no evidence" not in intent.lower() and "unverified" not in intent.lower():
+                        intents.append(intent)
 
                 if not intents:
                     explanation = f"Imports `{dep_name}`."
