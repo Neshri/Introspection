@@ -14,9 +14,17 @@ class CodeEntityVisitor(cst.CSTVisitor):
         self.external_imports = set()
         self.import_map = {}
         self.cross_module_interactions = []
-        # Added "globals" to entities
+        
         self.entities = {"functions": [], "classes": {}, "globals": []}
+        
+        # Stack to track context names (unchanged)
         self.current_context = []
+        
+        # New: Stack to track Definition Headers (Signatures/Class Defs)
+        # This ensures we have a valid snippet even when outside a SimpleStatementLine
+        self.header_stack = []
+        
+        self.current_statement = None
 
     def visit_Import(self, node: cst.Import) -> None:
         for alias in node.names:
@@ -55,11 +63,8 @@ class CodeEntityVisitor(cst.CSTVisitor):
                 if imported_file in self.all_project_files:
                     self.relative_imports.add(imported_file); self.import_map[name_node.name.value] = imported_file
 
-    # --- New: Capture Global Assignments (Constants) ---
     def visit_Assign(self, node: cst.Assign) -> None:
-        # Only capture top-level assignments (Module Scope)
         if len(self.current_context) > 0: return
-        
         for target in node.targets:
             if isinstance(target.target, cst.Name):
                 name = target.target.value
@@ -67,13 +72,12 @@ class CodeEntityVisitor(cst.CSTVisitor):
                 self.entities["globals"].append({
                     "name": name,
                     "source_code": source,
-                    "signature": f"{name} = ...", # Pseudo-signature for display
+                    "signature": f"{name} = ...",
                     "is_private": name.startswith("_")
                 })
 
     def visit_AnnAssign(self, node: cst.AnnAssign) -> None:
         if len(self.current_context) > 0: return
-        
         if isinstance(node.target, cst.Name):
             name = node.target.value
             source = self.module_node.code_for_node(node)
@@ -83,7 +87,6 @@ class CodeEntityVisitor(cst.CSTVisitor):
                 "signature": f"{name}: {self.module_node.code_for_node(node.annotation.annotation)} = ...",
                 "is_private": name.startswith("_")
             })
-    # ---------------------------------------------------
 
     def _analyze_function_body(self, node: cst.FunctionDef) -> bool:
         body = node.body
@@ -106,6 +109,14 @@ class CodeEntityVisitor(cst.CSTVisitor):
         class_source = self.module_node.code_for_node(node)
         docstring = node.get_docstring()
         
+        # --- NEW: Reconstruct Header for Snippet Context ---
+        # "class Name(Base1, Base2):"
+        bases = [self.module_node.code_for_node(b.value) for b in node.bases]
+        bases_str = f"({', '.join(bases)})" if bases else ""
+        header = f"class {node.name.value}{bases_str}:"
+        self.header_stack.append(header)
+        # ---------------------------------------------------
+        
         self.entities["classes"][node.name.value] = {
             "source_code": class_source,
             "docstring": docstring,
@@ -114,6 +125,7 @@ class CodeEntityVisitor(cst.CSTVisitor):
 
     def leave_ClassDef(self, original_node: cst.ClassDef) -> None:
         self.current_context.pop()
+        self.header_stack.pop() # Exit header context
 
     def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
         self.current_context.append(node.name.value)
@@ -122,6 +134,10 @@ class CodeEntityVisitor(cst.CSTVisitor):
         params = self.module_node.code_for_node(node.params)
         returns = f" -> {self.module_node.code_for_node(node.returns.annotation)}" if node.returns else ""
         signature = f"def {node.name.value}({params}){returns}:"
+        
+        # --- NEW: Push Signature to Stack ---
+        self.header_stack.append(signature)
+        # ------------------------------------
         
         docstring = node.get_docstring()
         is_unimplemented = self._analyze_function_body(node)
@@ -151,12 +167,35 @@ class CodeEntityVisitor(cst.CSTVisitor):
     def leave_FunctionDef(self, original_node: cst.FunctionDef) -> None:
         if self.current_context:
             self.current_context.pop()
+        self.header_stack.pop() # Exit header context
         
+    def visit_SimpleStatementLine(self, node: cst.SimpleStatementLine) -> None:
+        self.current_statement = node
+
+    def leave_SimpleStatementLine(self, original_node: cst.SimpleStatementLine) -> None:
+        self.current_statement = None
+
     def _record_interaction(self, symbol: str, node: cst.CSTNode):
         if symbol in self.import_map:
             target_module_path = self.import_map[symbol]
             context = ".".join(self.current_context) or "module_level"
-            snippet = self.module_node.code_for_node(node)
+            
+            # --- FIXED SNIPPET RESOLUTION ---
+            snippet_str = ""
+            
+            if self.current_statement:
+                # Case 1: Standard line of code
+                snippet_str = self.module_node.code_for_node(self.current_statement)
+            elif self.header_stack:
+                # Case 2: In a Function Signature or Class Definition (Type Hint/Inheritance)
+                snippet_str = self.header_stack[-1]
+            else:
+                # Case 3: Fallback (should rarely happen if stack is managed right)
+                snippet_str = self.module_node.code_for_node(node)
+                
+            snippet = snippet_str.strip().replace('\n', ' ')
+            # --------------------------------
+            
             self.cross_module_interactions.append({
                 "context": context, 
                 "target_module": os.path.basename(target_module_path), 

@@ -8,123 +8,119 @@ from .llm_util import chat_llm
 
 class MapSynthesizer:
     """
-    Synthesizes a high-level "System Architecture" overview from the detailed module contexts.
+    Synthesizes a high-level "System Architecture" overview using Hierarchical Synthesis.
     """
     def __init__(self, gatekeeper: SemanticGatekeeper):
         self.gatekeeper = gatekeeper
 
     def synthesize(self, contexts: Dict[str, ModuleContext], processing_order: List[str]) -> str:
         """
-        Generates a cohesive system summary using a Verified Rolling Synthesis approach.
+        Generates a cohesive system summary by grouping modules by Archetype and synthesizing layers first.
         """
-        current_summary = "The system is initialized."
+        # 1. Group Modules by Archetype
+        groups = {
+            "Entry Point": [],
+            "Service": [],
+            "Utility": [],
+            "Data Model": [],
+            "Configuration": []
+        }
         
-        for module_path in processing_order:
-            if module_path not in contexts: continue
+        for path in processing_order:
+            if path not in contexts: continue
+            ctx = contexts[path]
+            archetype = ctx.archetype if ctx.archetype else "Utility"
             
-            module = contexts[module_path]
-            module_name = os.path.basename(module.file_path)
-            module_role = module.module_role.text if module.module_role else "No role defined."
-            
-            logging.info(f"Synthesizing module: {module_name}")
-            
-            critique = None
-            success = False
-            
-            for attempt in range(3): # Max 3 retries
-                # 1. Synthesis Step
-                new_summary = self._generate_summary(current_summary, module_name, module_role, critique)
-                
-                # 2. Atomic Verification Step (3 Calls)
-                errors = []
-                
-                # Check 1: Presence
-                if not self._check_presence(new_summary, module_name):
-                    errors.append(f"Module '{module_name}' is missing from the summary.")
-                
-                # Check 2: Fidelity
-                elif not self._check_fidelity(new_summary, module_name, module_role):
-                    errors.append(f"Module '{module_name}' role is misrepresented. It must be described as: {module_role}")
-                    
-                # Check 3: Hallucination
-                elif self._check_hallucination(new_summary, module_name, module_role):
-                    errors.append(f"Module '{module_name}' has hallucinated capabilities not in its role.")
-                
-                if not errors:
-                    current_summary = new_summary
-                    success = True
-                    break # Success, move to next module
-                
-                # 3. Regeneration Trigger
-                critique = " ".join(errors)
-                logging.warning(f"Verification Failed for {module_name} (Attempt {attempt+1}): {critique}")
-            
-            # Fallback: If retries exhausted, append simple string to avoid data loss
-            if not success:
-                 logging.error(f"Failed to synthesize {module_name} after 3 attempts. Appending raw role.")
-                 current_summary += f"\n- **{module_name}**: {module_role} (Verification Failed)"
+            # Map raw archetype strings to our groups
+            if "Entry Point" in archetype: groups["Entry Point"].append(ctx)
+            elif "Service" in archetype: groups["Service"].append(ctx)
+            elif "Utility" in archetype: groups["Utility"].append(ctx)
+            elif "Data" in archetype: groups["Data Model"].append(ctx)
+            elif "Config" in archetype: groups["Configuration"].append(ctx)
+            else: groups["Utility"].append(ctx)
 
-        return current_summary
+        # 2. Synthesize Each Group (Layer)
+        layer_summaries = {}
+        for group_name, modules in groups.items():
+            if not modules: continue
+            logging.info(f"Synthesizing Group: {group_name} ({len(modules)} modules)")
+            layer_summaries[group_name] = self._synthesize_group(group_name, modules)
 
-    def _generate_summary(self, current_summary: str, name: str, role: str, critique: str = None) -> str:
+        # 3. Synthesize Final System Overview
+        return self._synthesize_system(layer_summaries)
+
+    def _synthesize_group(self, group_name: str, modules: List[ModuleContext]) -> str:
+        # Prepare context list
+        module_list = []
+        for m in modules:
+            name = os.path.basename(m.file_path)
+            role = m.module_role.text if m.module_role else "No role defined."
+            module_list.append(f"- **{name}**: {role}")
+        
+        modules_text = "\n".join(module_list)
+        
         prompt = f"""
-        Act as a Lead Software Architect.
-        
-        Current System Architecture:
-        {current_summary}
-        
-        New Module to Integrate:
-        - Name: {name}
-        - Role: {role}
-        
-        Task:
-        Rewrite the System Architecture to include the New Module.
-        - Maintain the narrative flow.
-        - Ensure {name} is described ACCURATELY according to its role.
-        - Do NOT remove existing modules.
-        """
-        
-        if critique:
-            prompt += f"\n\nCRITIQUE (Previous Attempt Failed): {critique}\nFIX THIS ERROR."
-            
-        messages = [{"role": "user", "content": prompt}]
-        return chat_llm(DEFAULT_MODEL, messages).strip()
+        ### ROLE
+        You are a Technical Documentation Specialist.
 
-    def _check_presence(self, summary: str, name: str) -> bool:
-        prompt = f"""
-        Summary:
-        {summary}
-        
-        Task: Is the module `{name}` explicitly mentioned in the summary?
-        Return ONLY JSON: {{ "present": boolean }}
-        """
-        val = self.gatekeeper.execute_with_feedback(prompt, "present", [])
-        return str(val).lower() == "true"
+        ### INPUT DATA
+        Group: {group_name}
+        Modules:
+        {modules_text}
 
-    def _check_fidelity(self, summary: str, name: str, role: str) -> bool:
-        prompt = f"""
-        Summary:
-        {summary}
-        
-        Module: {name}
-        Defined Role: {role}
-        
-        Task: Does the summary describe `{name}` in a way that is consistent with its Defined Role?
-        Return ONLY JSON: {{ "consistent": boolean }}
-        """
-        val = self.gatekeeper.execute_with_feedback(prompt, "consistent", [])
-        return str(val).lower() == "true"
+        ### TASK
+        Synthesize a concise technical summary of this {group_name} layer.
+        - Describe what this group of modules collectively achieves.
+        - Highlight key interactions between them if obvious.
+        - Be strictly objective. No marketing fluff.
 
-    def _check_hallucination(self, summary: str, name: str, role: str) -> bool:
-        prompt = f"""
-        Summary:
-        {summary}
-        
-        Module: {name}
-        Defined Role: {role}
-        
-        Task: Does the summary attribute any major actions/capabilities to `{name}` that are NOT present in its Defined Role?
-        Return ONLY JSON: {{ "hallucination": boolean }}
+        ### REQUIREMENTS
+        1. Output strictly valid JSON with key "summary".
+        2. Do NOT use words like "seamless", "robust", "pivotal".
+        3. Focus on technical responsibility.
         """
-        val = self.gatekeeper.execute_with_feedback(prompt, "hallucination", [])
-        return str(val).lower() == "true"
+        
+        return self.gatekeeper.execute_with_feedback(
+            prompt, 
+            "summary", 
+            forbidden_terms=["seamless", "robust", "pivotal", "meticulous"],
+            verification_source=modules_text,
+            log_context=f"GroupSynth:{group_name}"
+        )
+
+    def _synthesize_system(self, layer_summaries: Dict[str, str]) -> str:
+        layers_text = ""
+        # Order matters for narrative
+        order = ["Entry Point", "Service", "Utility", "Data Model", "Configuration"]
+        
+        for name in order:
+            if name in layer_summaries:
+                layers_text += f"### {name} Layer\n{layer_summaries[name]}\n\n"
+        
+        prompt = f"""
+        ### ROLE
+        You are a Technical Documentation Specialist.
+
+        ### INPUT DATA
+        System Layers:
+        {layers_text}
+
+        ### TASK
+        Generate a High-Level System Overview.
+        - Write a cohesive, text-based narrative (3-4 paragraphs).
+        - Do NOT output a list or a dictionary.
+        - Combine the layers into a story of how data flows through the system.
+
+        ### REQUIREMENTS
+        1. Output strictly valid JSON with key "overview".
+        2. The value of "overview" must be a single MARKDOWN string.
+        3. Do NOT use marketing adjectives.
+        """
+        
+        return self.gatekeeper.execute_with_feedback(
+            prompt, 
+            "overview", 
+            forbidden_terms=["seamless", "robust", "pivotal", "meticulous"], 
+            verification_source=layers_text,
+            log_context="SystemSynth"
+        )

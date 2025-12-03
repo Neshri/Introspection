@@ -19,7 +19,7 @@ class CrawlerAgent:
         # TODO: Implement the agent's logic here
         print(f"Running CrawlerAgent for goal: {self.goal} and target root: {self.target_root}")
         
-        # 1. Analyze the codebase
+        # 1. Analyze the target graph
         project_map, processing_order = project_pulse(self.target_root)
         
         # 2. Synthesize System Architecture
@@ -36,8 +36,10 @@ class CrawlerAgent:
         
         # Use for loop for now.
         for i in range(5):
-            # Do stuff here like understand the codebase by navigating the graph.
+            # Do stuff here like understand the codebase by navigating the graph. Will require a new module.
             self.memory.cleanup_memories(current_turn)
             current_turn += 1
 
+
+        # For now just return the rendered map.
         return response

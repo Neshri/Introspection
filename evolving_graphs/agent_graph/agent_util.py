@@ -207,6 +207,7 @@ def _create_module_context(path: str, graph: ProjectGraph, dep_contexts: Dict[st
         context.file_path = path
     elif not hasattr(context, 'file_path'):
         context = ModuleContext(file_path=path)
+    logging.info(f"Generated context for module: {context}")
     return context
 
 

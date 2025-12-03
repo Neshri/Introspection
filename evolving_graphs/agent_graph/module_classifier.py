@@ -17,6 +17,13 @@ class ModuleClassifier:
     def classify(self) -> ModuleArchetype:
         if self.module_name.endswith("_main.py") or self.module_name == "__main__.py":
             return ModuleArchetype.ENTRY_POINT
+            
+        # Heuristic: Name-based classification
+        lower_name = self.module_name.lower()
+        if any(x in lower_name for x in ["model", "schema", "context", "types", "dto"]):
+            return ModuleArchetype.DATA_MODEL
+        if any(x in lower_name for x in ["config", "settings", "constants"]):
+            return ModuleArchetype.CONFIGURATION
         
         source = self.data.get('source_code', '')
         entities = self.data.get('entities', {})
@@ -52,9 +59,7 @@ class ModuleClassifier:
 
         if deps == 0:
             if classes > 0:
-                # If it has public methods, it's a Service (Logic), not just Data
-                if has_behavior:
-                    return ModuleArchetype.SERVICE
+                # Relaxed Logic: Standalone modules with classes are likely Data Models, even with methods.
                 return ModuleArchetype.DATA_MODEL
             
             if funcs > 0:

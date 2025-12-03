@@ -166,7 +166,7 @@ class ReportRenderer:
             for cid, index in sorted_claims:
                 if cid in ctx.claims:
                     claim = ctx.claims[cid]
-                    lines.append(f"> 🆔 `{cid[:6]}` [{index}]: {claim.text} _(Source: {claim.reference})_")
+                    lines.append(f"> 🆔 `{cid[:6]}` [{index}]: {claim.text} _(Source: {replace_ref(claim.reference)})_")
                 else:
                     lines.append(f"> 🆔 `{cid[:6]}` [{index}]: _Claim text missing_")
             

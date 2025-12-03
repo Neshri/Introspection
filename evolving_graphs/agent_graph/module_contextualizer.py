@@ -3,6 +3,7 @@ from typing import Any, Dict, List
 
 from .summary_models import ModuleContext, Alert, Claim
 from .semantic_gatekeeper import SemanticGatekeeper
+from .task_executor import TaskExecutor
 
 from .module_classifier import ModuleClassifier, ModuleArchetype
 from .component_analyst import ComponentAnalyst
@@ -18,12 +19,14 @@ class ModuleContextualizer:
         self.module_name = os.path.basename(file_path)
         
         self.gatekeeper = SemanticGatekeeper()
+        self.task_executor = TaskExecutor(self.gatekeeper) # <--- NEW: Initialize TaskExecutor
+        
         self.classifier = ModuleClassifier(self.module_name, self.data)
         self.archetype = self.classifier.classify()
         self.context.archetype = self.archetype.value # Store for Renderer
         
         self.comp_analyst = ComponentAnalyst(self.gatekeeper)
-        self.dep_analyst = DependencyAnalyst(self.gatekeeper)
+        self.dep_analyst = DependencyAnalyst(self.gatekeeper, self.task_executor) # <--- NEW: Pass Executor
 
         # Hard Data: Who calls me? (Calculated once at init)
         self.usage_map = self._build_usage_map()
@@ -83,6 +86,10 @@ class ModuleContextualizer:
         
         return usage_map
 
+    def _clean_ref(self, text: str) -> str:
+        import re
+        return re.sub(r'\[ref:[a-f0-9]+\]', '', text).strip()
+
     def _gather_upstream_knowledge(self) -> Dict[str, str]:
         """
         Categorizes upstream dependencies into State (Data) and Logic (Capabilities).
@@ -100,11 +107,12 @@ class ModuleContextualizer:
             
             for api_name, grounded_text in dep_ctx.public_api.items():
                 desc = grounded_text.text.lower()
+                clean_text = self._clean_ref(grounded_text.text)
                 
                 # Classification: Is it State or Logic?
                 is_state = any(marker in desc for marker in state_markers)
                 
-                entry = f"- {dep_name} exports `{api_name}`: {grounded_text.text}"
+                entry = f"- {dep_name} exports `{api_name}`: {clean_text}"
                 
                 if is_state:
                     state_knowledge.append(entry)
@@ -117,8 +125,28 @@ class ModuleContextualizer:
         }
 
     def _pass_systemic_synthesis(self, critique_instruction: str = None):
-        local_caps = [f"- {k}: {v.text}" for k, v in self.context.public_api.items()]
+        
+        local_caps = []
+        supporting_claim_ids = set()
+        
+        for k, v in self.context.public_api.items():
+            local_caps.append(f"- {k}: {self._clean_ref(v.text)}")
+            supporting_claim_ids.update(v.supporting_claim_ids)
+
         upstream_data = self._gather_upstream_knowledge()
+        
+        # Collect upstream claim IDs (if we want to cite them too, though they are in other modules)
+        # For now, let's focus on local capabilities as the primary "source" of the synthesis
+        # But wait, synthesis is about the WHOLE picture. 
+        # Actually, the synthesis is a meta-claim. It's based on the analysis of the module.
+        # The "source" should ideally point to the claims that justify this role.
+        # Let's include upstream dependency claims if we can easily get them? 
+        # No, upstream claims are in other modules. We can only cite what we have here.
+        # But we DO have `dep_contexts`.
+        
+        # Let's stick to local claims for now as they are the most direct evidence.
+        # If the user wants upstream too, we can add that later.
+        
         
         upstream_state = upstream_data["state"]
         upstream_logic = upstream_data["logic"]
@@ -128,10 +156,30 @@ class ModuleContextualizer:
         imports_context = f"External Imports: {', '.join(external_imports)}" if external_imports else "(None)"
         
         # --- DETERMINISTIC IMPACT ANALYSIS ---
-        # Derive the impact list from the Usage Map (Hard Data), not file dependencies.
+        # Derive the impact list from the Usage Map (Hard Data)
         all_callers = set()
         for callers in self.usage_map.values():
             all_callers.update(callers)
+            
+        # --- NEW: Format Downstream Usage for the LLM ---
+        # This gives the "Why do I exist?" context.
+        downstream_context = "(None)"
+        if all_callers:
+            # Group specific usages: "agent_core.py uses chat_llm"
+            usage_details = []
+            for symbol, files in self.usage_map.items():
+                for f in files:
+                    usage_details.append(f"- {f} uses `{symbol}`")
+            
+            # Sort and deduplicate for cleaner prompt
+            usage_summary = sorted(list(set(usage_details)))
+            
+            # If too many, just list modules to save tokens
+            if len(usage_summary) > 10:
+                downstream_context = f"Used by {len(all_callers)} modules: {', '.join(sorted(all_callers))}"
+            else:
+                downstream_context = "\n".join(usage_summary)
+
         
         impact_footer = ""
         if all_callers:
@@ -146,34 +194,31 @@ class ModuleContextualizer:
         if critique_instruction:
             critique_section = f"\n### CRITIQUE FEEDBACK\nThe previous analysis was criticized. Please address this specific instruction:\n**{critique_instruction}**\n"
 
-        # --- ARCHETYPE-AWARE PROMPTING (Objective Truth) ---
-        # We tailor the instructions to prevent "Hallucinated Agency"
-        
+        # --- ARCHETYPE-AWARE PROMPTING ---
+        # (Your existing archetype strings are fine, kept for brevity)
         archetype_instructions = ""
         if self.archetype == ModuleArchetype.DATA_MODEL:
-            archetype_instructions = """
+             archetype_instructions = """
             CONSTRAINT: You are describing a PASSIVE data structure. 
             - Use verbs like 'Defines', 'Stores', 'Encapsulates', 'Represent'.
             - Do NOT use active verbs like 'Orchestrates', 'Manages', 'Controls'.
-            - Do NOT imply this module does anything on its own. It is just data.
             """
         elif self.archetype == ModuleArchetype.UTILITY:
             archetype_instructions = """
             CONSTRAINT: You are describing a PASSIVE utility library.
             - Use verbs like 'Provides', 'Offers', 'Contains'.
             - Focus on the *capabilities* it offers to others.
+            - Describe the value provided to the Downstream Consumers listed below.
             """
         elif self.archetype == ModuleArchetype.ENTRY_POINT:
              archetype_instructions = """
             CONSTRAINT: You are describing an ENTRY POINT.
             - Use verbs like 'Orchestrates', 'Initializes', 'Runs'.
-            - Focus on the high-level goal it executes.
             """
         else: # Service
              archetype_instructions = """
             CONSTRAINT: You are describing an ACTIVE service or agent.
             - Use verbs like 'Manages', 'Analyzes', 'Generates'.
-            - Focus on its responsibility in the system.
             """
 
         prompt = f"""
@@ -192,9 +237,13 @@ Upstream State (Data/Config):
 Upstream Logic (Collaborators):
 {upstream_logic if upstream_logic else "(None)"}
 
+Downstream Usage (Consumers):
+{downstream_context}
+
 External Imports:
 {imports_context}
 {critique_section}
+
 ### TASK
 Generate a JSON object with a "role" field that synthesizes the **Systemic Role** of `{self.module_name}`.
 
@@ -205,17 +254,37 @@ Generate a JSON object with a "role" field that synthesizes the **Systemic Role*
 2. Do NOT use the module name "{self.module_name}".
 3. Do NOT use marketing adjectives (e.g. "efficient", "seamless", "robust"). Do not mention that you are avoiding them.
 4. Description must be at least 5 words long.
+5. **CRITICAL: Distinguish between PERFORMING and ORCHESTRATING.**
+   - If the module calls a dependency to do work, use verbs like "Orchestrates", "Delegates to", "Invokes", or "Triggers".
+   - Do NOT claim the module "Performs" the action itself if it only calls a dependency.
+   - Example: If it calls `clean_memory()`, say "Triggers memory cleanup", NOT "Cleans memory".
+6. **Avoid Redundancy**: Do NOT use phrases like "Orchestrates the orchestration" or "Manages the management".
 
 ### EXAMPLE
-Input: (Context about a database module)
-Output: {{"role": "Persists user data to disk and manages connection pooling."}}
+Input: (Context about a database module used by Auth and Logging)
+Output: {{"role": "Persists user data to disk and provides connection pooling for Auth and Logging services."}}
 """
         
-        # Pass the SKELETON + WORKING MEMORY for verification (Recursive Verification).
+        # Pass the SKELETON + WORKING MEMORY for verification
         skeleton = self.comp_analyst.generate_module_skeleton(self.data.get('source_code', ''))
         working_memory_str = "\n".join(getattr(self, 'working_memory', []))
         
-        verification_evidence = f"--- MODULE SKELETON ---\n{skeleton}\n\n--- CHILD SUMMARIES (Working Memory) ---\n{working_memory_str}\n\n--- UPSTREAM STATE ---\n{upstream_state}\n\n--- UPSTREAM LOGIC ---\n{upstream_logic}\n\n--- IMPORTS ---\n{imports_context}"
+        # Add Downstream Context to verification source so Auditor knows it's true
+        verification_evidence = f"""
+        --- LOCAL LOGIC (WHAT IT DOES) ---
+        {skeleton}
+        
+        --- INTERNAL MECHANISMS ---
+        {working_memory_str}
+        
+        --- CONTEXT (HOW IT IS USED) ---
+        {downstream_context}
+        
+        --- IMPORTS ---
+        {imports_context}
+        
+        NOTE TO AUDITOR: Prioritize 'LOCAL LOGIC' for capabilities. 'CONTEXT' is only for understanding relationships. Do not attribute Downstream intent to this module.
+        """
         
         context_label = f"SystemicSynthesis:{self.module_name}"
         
@@ -228,7 +297,16 @@ Output: {{"role": "Persists user data to disk and manages connection pooling."}}
         )
         
         full_role = f"The module `{self.module_name}` {role_text}{impact_footer}"
-        self.context.set_module_role(full_role, [Claim(role_text, "Synthesis", self.file_path)])
+        
+        # Construct the source string with references
+        source_ref = "Synthesis"
+        if supporting_claim_ids:
+            # Sort for deterministic output
+            sorted_ids = sorted(list(supporting_claim_ids))
+            refs = ", ".join([f"[ref:{cid}]" for cid in sorted_ids])
+            source_ref = f"Synthesis (based on {refs})"
+            
+        self.context.set_module_role(full_role, [Claim(role_text, source_ref, self.file_path)])
 
     def _pass_alerts(self):
         for todo in self.data.get('todos', []):

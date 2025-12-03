@@ -1,16 +1,27 @@
 import os
-from typing import Set, Dict
+import re
+from typing import Set, Dict, List, Optional
 
-from .semantic_gatekeeper import SemanticGatekeeper
+# Import BANNED_ADJECTIVES to sanitize inputs
+from .semantic_gatekeeper import SemanticGatekeeper, BANNED_ADJECTIVES
 from .summary_models import ModuleContext, Claim
+from .task_executor import TaskExecutor
 
 class DependencyAnalyst:
-    def __init__(self, gatekeeper: SemanticGatekeeper):
+    def __init__(self, gatekeeper: SemanticGatekeeper, task_executor: TaskExecutor):
         self.gatekeeper = gatekeeper
+        self.task_executor = task_executor
+
+    def _sanitize_context(self, text: str) -> str:
+        """Removes banned adjectives from context string to prevent prompt poisoning."""
+        if not text: return ""
+        # Remove banned words case-insensitively
+        pattern = r'\b(' + '|'.join(BANNED_ADJECTIVES) + r')\b'
+        return re.sub(pattern, '', text, flags=re.IGNORECASE).strip()
 
     def analyze_dependencies(self, context: ModuleContext, dependencies: Set[str], dep_contexts: Dict[str, ModuleContext], module_name: str, file_path: str, interactions: list = []):
         """
-        Analyzes imports to determine intent, utilizing upstream knowledge for context.
+        Analyzes imports using the TaskExecutor (Plan-and-Solve) to prevent hallucination.
         """
         for dep_path in dependencies:
             dep_name = os.path.basename(dep_path)
@@ -18,36 +29,60 @@ class DependencyAnalyst:
             
             explanation = f"Imports `{dep_name}`."
             
+            # Helper to clean refs
+            def clean_ref(text): 
+                return re.sub(r'\[ref:[a-f0-9]+\]', '', text).strip()
+
             # Only analyze if we have context for the dependency
             if upstream_ctx and upstream_ctx.module_role.text:
-                child_role = upstream_ctx.module_role.text
+                # SANITIZATION FIX: Clean the upstream role text
+                child_role = self._sanitize_context(clean_ref(upstream_ctx.module_role.text))
                 
-                # --- 1. State Propagation: Extract Known Values ---
-                state_markers = ["stores", "defines", "configuration", "value", "data container", "enum", "constant", "variable", "setting", "limit", "threshold"]
-                
-                known_state = []
-                known_logic = []
-                
-                for api_desc in upstream_ctx.public_api.values():
-                    desc_lower = api_desc.text.lower()
-                    if any(m in desc_lower for m in state_markers):
-                         known_state.append(f"- {api_desc.text}")
-                    else:
-                         known_logic.append(f"- {api_desc.text}")
-                
-                # --- 2. Format Context ---
-                state_context = ""
-                if known_state:
-                    state_context = "\nExported Data/State:\n" + "\n".join(known_state[:5])
-                    
-                logic_context = ""
-                if known_logic:
-                    logic_context = "\nExported Capabilities/Logic:\n" + "\n".join(known_logic[:5])
-
-                # --- 3. Prepare Verification Evidence ---
+                # --- 1. Identify Used Symbols (Hard Data) ---
                 used_symbols = sorted(list(set([i['symbol'] for i in interactions if i['target_module'] == dep_name])))
                 
-                # Extract and deduplicate snippets
+                # --- 2. Smart Context Retrieval (Relevance Filtering) ---
+                relevant_state = []
+                relevant_logic = []
+                general_context = []
+
+                state_markers = ["stores", "defines", "configuration", "value", "data container", "enum", "constant", "variable", "setting", "limit", "threshold"]
+
+                for api_name, grounded_text in upstream_ctx.public_api.items():
+                    desc = self._sanitize_context(grounded_text.text)
+                    
+                    is_used = any(
+                        sym == api_name or 
+                        f" {sym}" in api_name or 
+                        f".{sym}" in api_name 
+                        for sym in used_symbols
+                    )
+                    
+                    entry = f"- {desc}"
+                    
+                    if is_used:
+                        if any(m in desc.lower() for m in state_markers):
+                            relevant_state.append(entry)
+                        else:
+                            relevant_logic.append(entry)
+                    else:
+                        if len(general_context) < 3: 
+                            general_context.append(entry)
+
+                # --- 3. Format Context Strings ---
+
+                state_context = ""
+                if relevant_state:
+                    state_context = "\nReferenced Data:\n" + "\n".join([clean_ref(s) for s in relevant_state])
+                
+                logic_context = ""
+                if relevant_logic:
+                    logic_context = "\nReferenced Logic:\n" + "\n".join([clean_ref(s) for s in relevant_logic])
+                    
+                if not relevant_state and not relevant_logic and general_context:
+                    logic_context += "\nGeneral Exports (Unused):\n" + "\n".join([clean_ref(s) for s in general_context])
+
+                # --- 4. Prepare Snippet Evidence ---
                 raw_snippets = [i.get('snippet', '') for i in interactions if i['target_module'] == dep_name and i.get('snippet')]
                 unique_snippets = sorted(list(set(raw_snippets)))
                 
@@ -60,58 +95,30 @@ class DependencyAnalyst:
                 verification_source = f"Dependency Role: {child_role}\n{state_context}\n{logic_context}\n{usage_context}"
                 label = f"Dep:{module_name}->{dep_name}"
 
-                # --- 5. Execute LLM (Split Analysis) ---
-                
-                # A. Data Usage Analysis
-                data_intent = ""
-                if known_state:
-                    # FIX: Ask for a full sentence to satisfy Gatekeeper word count (Avoids 'None' Style Fail)
-                    prompt_data = f"""
-                    Context: Module `{module_name}` imports `{dep_name}`.
-                    `{dep_name}` Exports Data:
-                    {state_context}
-                    
-                    Task: Does `{module_name}` import or use any of these constants/types?
-                    If yes, describe the MECHANISM and INTENT in 1 short sentence starting with a verb.
-                    Example: "Retrieves the MAX_RETRIES constant to configure the connection timeout."
-                    
-                    If no, state "Does not access any exported data."
-                    """
-                    data_intent = self.gatekeeper.execute_with_feedback(
-                        prompt_data, "intent", [dep_name, "uses functionality", "utilizes"], verification_source=verification_source, log_context=f"{label}:Data"
-                    )
-                
-                # B. Logic Invocation Analysis
-                logic_intent = ""
-                if known_logic:
-                    # FIX: Ask for a full sentence
-                    prompt_logic = f"""
-                    Context: Module `{module_name}` imports `{dep_name}`.
-                    `{dep_name}` Exports Logic:
-                    {logic_context}
-                    {usage_context}
-                    
-                    Task: Does `{module_name}` call or use any of these functions/classes/logic?
-                    If yes, describe the MECHANISM and INTENT in 1 short sentence starting with a verb.
-                    Example: "Calls the `connect` function to establish a secure websocket link."
-                    
-                    If no, state "Does not access any exported logic."
-                    """
-                    logic_intent = self.gatekeeper.execute_with_feedback(
-                        prompt_logic, "intent", [dep_name, "uses functionality", "utilizes"], verification_source=verification_source, log_context=f"{label}:Logic"
-                    )
-
-                # Combine & Filter the "Negative" responses
+                # --- 5. Execute Plan-and-Solve Analysis ---
                 intents = []
                 
-                # Check for Data Intent valid response
-                if data_intent and "does not access" not in data_intent.lower() and "none" not in data_intent.lower():
-                    intents.append(data_intent)
-                    
-                # Check for Logic Intent valid response
-                if logic_intent and "does not access" not in logic_intent.lower() and "none" not in logic_intent.lower():
-                    intents.append(logic_intent)
-                
+                if used_symbols:
+                    # A. Data Usage Analysis
+                    if relevant_state:
+                        intent = self.task_executor.solve_complex_task(
+                            main_goal=f"Determine strictly how `{module_name}` uses the Data/Constants from `{dep_name}` based on the snippets.",
+                            context_data=verification_source,
+                            log_label=f"{label}:Data"
+                        )
+                        if intent and "no evidence" not in intent.lower() and "unverified" not in intent.lower():
+                            intents.append(intent)
+
+                    # B. Logic Usage Analysis
+                    if relevant_logic:
+                        intent = self.task_executor.solve_complex_task(
+                            main_goal=f"Determine strictly how `{module_name}` uses the Logic/Capabilities of `{dep_name}` based on the snippets.",
+                            context_data=verification_source,
+                            log_label=f"{label}:Logic"
+                        )
+                        if intent and "no evidence" not in intent.lower() and "unverified" not in intent.lower():
+                            intents.append(intent)
+
                 if not intents:
                     explanation = f"Imports `{dep_name}`."
                 else:
