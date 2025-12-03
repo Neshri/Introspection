@@ -1,6 +1,7 @@
 import json
 import re
 import logging
+import ast
 from typing import Tuple, Set, Optional, List, Any
 
 from .agent_config import DEFAULT_MODEL
@@ -16,10 +17,10 @@ BANNED_ADJECTIVES: Set[str] = {
 class SemanticGatekeeper:
     """
     Manages LLM interactions with strict semantic enforcement.
-    Updated to LOG PROMPTS on Style Failures.
     """
     
     def execute_with_feedback(self, initial_prompt: str, json_key: str, forbidden_terms: List[str] = [], verification_source: str = None, log_context: str = "General") -> str:
+        # Use double backslashes for the example text to avoid syntax warnings
         final_prompt = f"{initial_prompt}\n\nIMPORTANT: Return ONLY a valid JSON object with key '{json_key}'. No Markdown. Escape all double quotes inside strings."
         
         messages = [
@@ -40,6 +41,7 @@ class SemanticGatekeeper:
             if clean_val is None:
                 logging.warning(f"[{log_context}] [Attempt {attempt}] FORMAT FAIL.\nPROMPT: {final_prompt}\nRESPONSE: {raw_response}\nERROR: {json_error}")
                 messages.append({"role": "assistant", "content": raw_response})
+                # FIX: Double backslashes here to prevent SyntaxWarning
                 messages.append({"role": "user", "content": f"System Alert: Invalid JSON format. Error: {json_error}. \nEnsure you escape double quotes inside the text (e.g. \\\"text\\\"). Return ONLY the object with key '{json_key}'."})
                 continue
 
@@ -48,7 +50,6 @@ class SemanticGatekeeper:
             # --- PHASE 2: STYLE CHECK ---
             is_valid_style, style_critique = self._critique_content(clean_val, forbidden_terms)
             if not is_valid_style:
-                # FIX: Log the PROMPT here so we can see why it chose those words
                 logging.warning(f"[{log_context}] [Attempt {attempt}] STYLE FAIL.\nPROMPT: {final_prompt}\nRESPONSE: {raw_response}\nCRITIQUE: {style_critique}")
                 messages.append({"role": "assistant", "content": raw_response})
                 messages.append({"role": "user", "content": style_critique})
@@ -111,6 +112,7 @@ class SemanticGatekeeper:
         if found_words: return False, f"Critique: Remove marketing words: {found_words}."
         for term in forbidden_terms:
             if len(term) < 3: continue 
+            # Raw string r'' handles backslashes correctly here
             if re.search(r'\b' + re.escape(term.lower()) + r'\b', text_lower):
                 return False, f"Critique: Forbidden generic verb found: '{term}'. Be more specific."
         if len(text_raw) < 5: return False, "Critique: Response too short."
@@ -136,6 +138,8 @@ class SemanticGatekeeper:
         try:
             if not raw: return None, "Empty response"
             clean = raw.strip()
+            
+            # 1. Attempt Clean Extraction
             balanced_json = self._extract_balanced_json(clean)
             if balanced_json: clean = balanced_json
             else:
@@ -147,21 +151,52 @@ class SemanticGatekeeper:
                     end = clean.rfind("}") + 1
                     if start != -1 and end != 0: clean = clean[start:end]
 
+            # 2. Primary Parse: Strict JSON
             try:
                 data = json.loads(clean)
             except json.JSONDecodeError:
+                # 3. Secondary Parse: Python Literal
+                data = None
                 try:
-                    pattern = f'"{key}"\\s*:\\s*"(.*)"'
-                    match = re.search(pattern, clean, re.DOTALL)
-                    if match:
-                        raw_val = match.group(1)
-                        if '", "status"' in raw_val: raw_val = raw_val.split('", "status"')[0]
-                        safe_val = raw_val.replace('"', "'")
-                        data = {key: safe_val}
-                    else:
-                        raise ValueError("Regex repair failed")
+                    data = ast.literal_eval(clean)
+                    if not isinstance(data, dict):
+                        data = None
                 except:
-                     return None, "JSON Decode Error"
+                    pass
+
+                # 4. Tertiary Parse: Regex Rescue
+                if data is None:
+                    try:
+                        # FIX: Use double backslashes \\ for regex escapes in f-string
+                        # \\{{ matches a literal { in regex
+                        # \\}} matches a literal } in regex
+                        pattern = f'"{key}"\\s*:\\s*(\\{{.*?\\}}|".*?")'
+                        match = re.search(pattern, clean, re.DOTALL)
+                        if match:
+                            raw_val = match.group(1)
+                            if raw_val.startswith("{"):
+                                try:
+                                    inner_data = ast.literal_eval(raw_val)
+                                    data = {key: inner_data}
+                                except:
+                                    safe_val = raw_val.replace('"', "'")
+                                    data = {key: safe_val}
+                            else:
+                                safe_val = raw_val.strip('"').replace('"', "'")
+                                data = {key: safe_val}
+                        else:
+                             # Fallback simple pattern
+                             pattern_simple = f'"{key}"\\s*:\\s*"(.*)"'
+                             match_simple = re.search(pattern_simple, clean, re.DOTALL)
+                             if match_simple:
+                                 raw_val = match_simple.group(1)
+                                 if '", "status"' in raw_val: raw_val = raw_val.split('", "status"')[0]
+                                 safe_val = raw_val.replace('"', "'")
+                                 data = {key: safe_val}
+                             else:
+                                 raise ValueError("Regex repair failed")
+                    except:
+                         return None, "JSON Decode Error"
 
             if "error" in data and len(data.keys()) == 1:
                 return None, f"Model returned error object: {data['error']}"
@@ -173,6 +208,7 @@ class SemanticGatekeeper:
                     return None, f"Missing key '{key}'."
 
             val = data[key]
+            
             if isinstance(val, (dict, list, bool, int, float)):
                 return json.dumps(val), None
             return str(val).strip(), None

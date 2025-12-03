@@ -5,39 +5,39 @@
 ## 🚀 Entry Points
 
 ## 📦 Module: `agent_graph_main.py`
-**Role:** The module `agent_graph_main.py` Orchestrates running of CrawlerAgent, initializes command line arguments, delegates to main logic for processing goals and target folders, synthesizes system summary and renders report [1]
+**Role:** The module `agent_graph_main.py` Orchestrates program execution by parsing command-line arguments, initializing CrawlerAgent for specified goal and root path, running agent's analysis methods on target directory, and returning completion message. [1]
 
 ### 🚨 Alerts
 - TODO **TODO**: Implement the rest of the function `(Ref: Comment)`
 
 ### 🧩 Interface & Logic
-- **`🔌 args`**: Assigns command-line arguments to local variables using ArgumentParser [2]
-- **`🔌 goal`**: Assigns parsed goal argument value to local variable for further processing in main function [3]
-- **`🔌 main`**: Locates main.py file, initializes CrawlerAgent, runs agent, reports completion [4]
-- **`🔌 parser`**: Initializes an argument parser for command line input, allowing users to specify parameters when running the program. [5]
-- **`🔌 result`**: Calls main function to process goal and target folder [6]
-- **`🔌 target_folder`**: Assigns target folder argument to local variable for use in main function [7]
+- **`🔌 args`**: Parses command-line arguments for goal and target_folder using argparse. [2]
+- **`🔌 goal`**: Assigns the parsed goal argument to the variable named goal. [3]
+- **`🔌 main`**: Scans target directory to find _main.py file, initializes CrawlerAgent for specified goal and root path, executes agent's run method, and returns completion message. [4]
+- **`🔌 parser`**: Configures an argument parser for program options and arguments. [5]
+- **`🔌 result`**: Invokes main function to process specified goal within target folder, generating analysis results. [6]
+- **`🔌 target_folder`**: Sets target_folder variable to value provided via command-line argument [7]
 
 ### 🔗 Uses (Upstream)
-- **`agent_core.py`**: Uses `agent_core.py`: Executes CrawlerAgent, initializing memory, fetching project map and processing order, synthesizing system summary, rendering report, cleaning memories, and returning completion response.. [8]
+- **`agent_core.py`**: Uses `agent_core.py`: Initializes the CrawlerAgent class from agent_core.py to analyze project structure, synthesize system summaries, render reports, and manage memory during execution.. [8]
 
 <details><summary><i>View Verification Claims</i></summary>
 
-> 🆔 `b1492b` [1]: Orchestrates running of CrawlerAgent, initializes command line arguments, delegates to main logic for processing goals and target folders, synthesizes system summary and renders report _(Source: Synthesis (based on [4], [6], [7], [3], [2], [5]))_
-> 🆔 `f5dfdc` [2]: Assigns command-line arguments to local variables using ArgumentParser _(Source: args)_
-> 🆔 `5bb5ec` [3]: Assigns parsed goal argument value to local variable for further processing in main function _(Source: goal)_
-> 🆔 `093358` [4]: Locates main.py file, initializes CrawlerAgent, runs agent, reports completion _(Source: main)_
-> 🆔 `f8c36a` [5]: Initializes an argument parser for command line input, allowing users to specify parameters when running the program. _(Source: parser)_
-> 🆔 `2b4862` [6]: Calls main function to process goal and target folder _(Source: result)_
-> 🆔 `52de2f` [7]: Assigns target folder argument to local variable for use in main function _(Source: target_folder)_
-> 🆔 `741740` [8]: Uses `agent_core.py`: Executes CrawlerAgent, initializing memory, fetching project map and processing order, synthesizing system summary, rendering report, cleaning memories, and returning completion response.. _(Source: Import agent_core.py)_
+> 🆔 `e98fa7` [1]: Orchestrates program execution by parsing command-line arguments, initializing CrawlerAgent for specified goal and root path, running agent's analysis methods on target directory, and returning completion message. _(Source: Synthesis (based on [3], [5], [7], [2], [6], [4]))_
+> 🆔 `47a642` [2]: Parses command-line arguments for goal and target_folder using argparse. _(Source: args)_
+> 🆔 `2aa837` [3]: Assigns the parsed goal argument to the variable named goal. _(Source: goal)_
+> 🆔 `ac09c7` [4]: Scans target directory to find _main.py file, initializes CrawlerAgent for specified goal and root path, executes agent's run method, and returns completion message. _(Source: main)_
+> 🆔 `2bee0e` [5]: Configures an argument parser for program options and arguments. _(Source: parser)_
+> 🆔 `a03764` [6]: Invokes main function to process specified goal within target folder, generating analysis results. _(Source: result)_
+> 🆔 `4645da` [7]: Sets target_folder variable to value provided via command-line argument _(Source: target_folder)_
+> 🆔 `73c384` [8]: Uses `agent_core.py`: Initializes the CrawlerAgent class from agent_core.py to analyze project structure, synthesize system summaries, render reports, and manage memory during execution.. _(Source: Import agent_core.py)_
 </details>
 
 ---
 ## ⚙️ Services
 
 ## 📦 Module: `agent_core.py`
-**Role:** The module `agent_core.py` Analyzes code structure, synthesizes system summary, renders detailed report based on processed input
+**Role:** The module `agent_core.py` Analyzes project structure, synthesizes system summaries, renders reports, and performs memory cleanup after execution.
 
 **Impact Analysis:** Changes to this module will affect: agent_graph_main.py [1]
 
@@ -45,211 +45,211 @@
 - TODO **TODO**: Implement the agent's logic here `(Ref: Comment)`
 
 ### 🧩 Interface & Logic
-- **`🔌 class CrawlerAgent`**: Synthesizes system summary and renders report based on processed data [2]
-- **`🔌 🔌 CrawlerAgent.run`**: Runs CrawlerAgent by initializing memory, fetching project map and processing order, synthesizing system summary, rendering report, cleaning memories, and returning completion response. [3]
+- **`🔌 class CrawlerAgent`**: Encapsulates project analysis functionality, synthesizes system summaries, renders reports, and manages memory during execution. [2]
+- **`🔌 🔌 CrawlerAgent.run`**: Analyzes project structure, synthesizes system summary, renders report, and performs memory cleanup after execution. [3]
 
 ### 🔗 Uses (Upstream)
-- **`semantic_gatekeeper.py`**: Uses `semantic_gatekeeper.py`: Installs and configures gatekeeper for data processing before passing to agent_core.py. [4]
-- **`map_synthesizer.py`**: Uses `map_synthesizer.py`: Orchestrates the synthesis of modules into categorized groups, synthesizes each group, then synthesizes overall system architecture. [5]
-- **`agent_util.py`**: Uses `agent_util.py`: Instructs agent_core.py to call project_pulse from agent_util.py during execution, establishing dependencies and influencing core module functionality analysis and processing.. [6]
-- **`report_renderer.py`**: Uses `report_renderer.py`: Instantiates and configures the ReportRenderer class to organize, process, and render context data from agent_core.py into structured reports for downstream services using the provided project_map.. [7]
-- **`summary_models.py`**: Uses `summary_models.py`: Defines and manages module contexts, roles, dependencies, and public APIs for agent_core.py components using ModuleContext from summary_models.py.. [8]
-- **`llm_util.py`**: Uses `llm_util.py`: Brings in the functionality of chat_llm module from llm_util, specifically for processing input messages into structured prompts, retrieving LLM responses, extracting pertinent information, and managing errors during execution within agent_core.py. [9]
-- **`memory_core.py`**: Uses `memory_core.py`: Creates an instance of ChromaMemory to encapsulate memory records as documents in the Chroma database and define query operations for managing metadata.; Manages and updates memory records by generating unique IDs, creating combined metadata, updating metadata with last used turn, evaluating helpfulness scores to delete low-score or stale memories, and retrieving metadata from the ChromaMemory class.. [10]
-- **`agent_config.py`**: Imports `agent_config.py`. [11]
+- **`semantic_gatekeeper.py`**: Uses `semantic_gatekeeper.py`: Instantiates SemanticGatekeeper to enforce technical analysis constraints and content validation within agent_core.py.. [4]
+- **`agent_util.py`**: Uses `agent_util.py`: Configures the timeout settings.. [5]
+- **`report_renderer.py`**: Uses `report_renderer.py`: Configures the report rendering parameters in agent_core.py by instantiating ReportRenderer and passing project_map and system_summary for report generation.. [6]
+- **`memory_core.py`**: Uses `memory_core.py`: Instantiates an instance of the ChromaMemory class to manage memory storage and retrieval within Chroma database, facilitating persistent text embedding associations.; Instantiates the `ChromaMemory` class and directly calls its `store()` method to save memory entries with associated metadata into the Chroma database, while also invoking the `query()` method to retrieve relevant memory based on input queries.. [7]
+- **`llm_util.py`**: Uses `llm_util.py`: Configures the Ollama chat API integration for message processing and generation.. [8]
+- **`summary_models.py`**: Uses `summary_models.py`: Instantiates ModuleContext and updates module context data using '_update_module_context'.. [9]
+- **`agent_config.py`**: Uses `agent_config.py`: Instantiates DEFAULT_MODEL constant from agent_config.py and assigns maximum context length limit via CONTEXT_LIMIT variable.. [10]
+- **`map_synthesizer.py`**: Uses `map_synthesizer.py`: Configures the MapSynthesizer to analyze module contexts and synthesize summaries for each group, generating cohesive system overviews.. [11]
 
 ### 👥 Used By (Downstream)
 - **`agent_graph_main.py`**
 
 <details><summary><i>View Verification Claims</i></summary>
 
-> 🆔 `5e0bf5` [1]: Analyzes code structure, synthesizes system summary, renders detailed report based on processed input _(Source: Synthesis (based on [3], [2]))_
-> 🆔 `1e9a0c` [2]: Synthesizes system summary and renders report based on processed data _(Source: class CrawlerAgent)_
-> 🆔 `0753df` [3]: Runs CrawlerAgent by initializing memory, fetching project map and processing order, synthesizing system summary, rendering report, cleaning memories, and returning completion response. _(Source: 🔌 CrawlerAgent.run)_
-> 🆔 `9e6382` [4]: Uses `semantic_gatekeeper.py`: Installs and configures gatekeeper for data processing before passing to agent_core.py. _(Source: Import semantic_gatekeeper.py)_
-> 🆔 `1d7d1e` [5]: Uses `map_synthesizer.py`: Orchestrates the synthesis of modules into categorized groups, synthesizes each group, then synthesizes overall system architecture. _(Source: Import map_synthesizer.py)_
-> 🆔 `4248ea` [6]: Uses `agent_util.py`: Instructs agent_core.py to call project_pulse from agent_util.py during execution, establishing dependencies and influencing core module functionality analysis and processing.. _(Source: Import agent_util.py)_
-> 🆔 `b6b1ba` [7]: Uses `report_renderer.py`: Instantiates and configures the ReportRenderer class to organize, process, and render context data from agent_core.py into structured reports for downstream services using the provided project_map.. _(Source: Import report_renderer.py)_
-> 🆔 `77da93` [8]: Uses `summary_models.py`: Defines and manages module contexts, roles, dependencies, and public APIs for agent_core.py components using ModuleContext from summary_models.py.. _(Source: Import summary_models.py)_
-> 🆔 `e8a204` [9]: Uses `llm_util.py`: Brings in the functionality of chat_llm module from llm_util, specifically for processing input messages into structured prompts, retrieving LLM responses, extracting pertinent information, and managing errors during execution within agent_core.py. _(Source: Import llm_util.py)_
-> 🆔 `c28791` [10]: Uses `memory_core.py`: Creates an instance of ChromaMemory to encapsulate memory records as documents in the Chroma database and define query operations for managing metadata.; Manages and updates memory records by generating unique IDs, creating combined metadata, updating metadata with last used turn, evaluating helpfulness scores to delete low-score or stale memories, and retrieving metadata from the ChromaMemory class.. _(Source: Import memory_core.py)_
-> 🆔 `d23947` [11]: Imports `agent_config.py`. _(Source: Import agent_config.py)_
+> 🆔 `c83f9c` [1]: Analyzes project structure, synthesizes system summaries, renders reports, and performs memory cleanup after execution. _(Source: Synthesis (based on [2], [3]))_
+> 🆔 `479cb8` [2]: Encapsulates project analysis functionality, synthesizes system summaries, renders reports, and manages memory during execution. _(Source: class CrawlerAgent)_
+> 🆔 `805e0d` [3]: Analyzes project structure, synthesizes system summary, renders report, and performs memory cleanup after execution. _(Source: 🔌 CrawlerAgent.run)_
+> 🆔 `3da5c3` [4]: Uses `semantic_gatekeeper.py`: Instantiates SemanticGatekeeper to enforce technical analysis constraints and content validation within agent_core.py.. _(Source: Import semantic_gatekeeper.py)_
+> 🆔 `0c2603` [5]: Uses `agent_util.py`: Configures the timeout settings.. _(Source: Import agent_util.py)_
+> 🆔 `4f5558` [6]: Uses `report_renderer.py`: Configures the report rendering parameters in agent_core.py by instantiating ReportRenderer and passing project_map and system_summary for report generation.. _(Source: Import report_renderer.py)_
+> 🆔 `567d77` [7]: Uses `memory_core.py`: Instantiates an instance of the ChromaMemory class to manage memory storage and retrieval within Chroma database, facilitating persistent text embedding associations.; Instantiates the `ChromaMemory` class and directly calls its `store()` method to save memory entries with associated metadata into the Chroma database, while also invoking the `query()` method to retrieve relevant memory based on input queries.. _(Source: Import memory_core.py)_
+> 🆔 `963bea` [8]: Uses `llm_util.py`: Configures the Ollama chat API integration for message processing and generation.. _(Source: Import llm_util.py)_
+> 🆔 `60b212` [9]: Uses `summary_models.py`: Instantiates ModuleContext and updates module context data using '_update_module_context'.. _(Source: Import summary_models.py)_
+> 🆔 `3b9e49` [10]: Uses `agent_config.py`: Instantiates DEFAULT_MODEL constant from agent_config.py and assigns maximum context length limit via CONTEXT_LIMIT variable.. _(Source: Import agent_config.py)_
+> 🆔 `b7f0ff` [11]: Uses `map_synthesizer.py`: Configures the MapSynthesizer to analyze module contexts and synthesize summaries for each group, generating cohesive system overviews.. _(Source: Import map_synthesizer.py)_
 </details>
 
 ---
 ## 📦 Module: `agent_util.py`
-**Role:** The module `agent_util.py` Orchestrates service execution by delegating tasks to underlying utilities
+**Role:** The module `agent_util.py` Manages generation of refined module contexts through critique feedback cycles.
 
 **Impact Analysis:** Changes to this module will affect: agent_core.py [1]
 
 ### 🧩 Interface & Logic
-- **`🔌 ProjectGraph`**: Assigns ProjectGraph as a dictionary mapping string keys to any values [2]
-- **`🔌 class ProjectSummarizer`**: Organizes project dependencies, computes processing order, and dynamically generates context data based on source code analysis and critical requirements [3]
-- **`🔌 project_pulse`**: Analyzes project structure by constructing dependency graph, summarizing modules, and generating contexts [4]
-- **`🔌 🔌 ProjectSummarizer.generate_contexts`**: Iteratively refines module contexts through cycles, updating based on source code, upstream API, and critique instructions [5]
-- **`🔒 _create_module_context`**: Generates module context by contextualizing module with critique instruction [6]
+- **`🔌 ProjectGraph`**: Associates string keys with any Python values to represent module dependencies and configurations. [2]
+- **`🔌 class ProjectSummarizer`**: Analyzes module dependencies, detects cycles, generates refined contexts based on critique feedback across multiple refinement cycles. [3]
+- **`🔌 project_pulse`**: Analyzes project files recursively to build a dependency graph, generates contextual summaries based on the graph, and produces module contexts along with processing order for analysis. [4]
+- **`🔌 🔌 ProjectSummarizer.generate_contexts`**: Analyzes dependencies between modules to generate refined contexts based on critique feedback across multiple refinement cycles. [5]
+- **`🔒 _create_module_context`**: Analyzes module components and dependencies to create contextual module information, adding alerts for detected errors. [6]
 
 ### 🔗 Uses (Upstream)
-- **`graph_analyzer.py`**: Uses `graph_analyzer.py`: Instantiates GraphAnalyzer and executes its run() method to analyze code structure and return a dependency graph as JSON, providing insights into target_file_path's dependencies.. [7]
-- **`module_contextualizer.py`**: Uses `module_contextualizer.py`: Analyzes module context, identifies dependencies, synthesizes role based on usage patterns using ModuleContextualizer class instantiated with path, graph, and dep_contexts arguments.. [8]
-- **`semantic_gatekeeper.py`**: Uses `semantic_gatekeeper.py`: Instantiates SemanticGatekeeper to assemble prompts, send them to LLM, parse responses, critique style against banned terms, verify grounding if source provided, and return formatted JSON description.. [9]
-- **`report_renderer.py`**: Uses `report_renderer.py`: Instantiates an instance of ReportRenderer to organize, process, and render context data into structured reports for downstream services.. [10]
-- **`map_critic.py`**: Uses `map_critic.py`: Creates an instance of MapCritic using gatekeeper as argument. [11]
-- **`summary_models.py`**: Uses `summary_models.py`: Manages and instantiates ModuleContext objects, creates unique identifiers using SHA1 hashing, updates module roles with placeholders, defines claim-based APIs, collects alerts, and organizes module states, dependencies, and contexts within agent_util.py by leveraging the capabilities defined in summary_models.py.. [12]
+- **`module_contextualizer.py`**: Uses `module_contextualizer.py`: Instantiates ModuleContextualizer using 'path', graph, and dep_contexts arguments to analyze module context and contextualize components based on dependencies and usage patterns.. [7]
+- **`semantic_gatekeeper.py`**: Uses `semantic_gatekeeper.py`: Instantiates SemanticGatekeeper to enforce strict analysis guidelines and content validation within code evaluation context, managing adherence to technical constraints defined by BANNED_ADJECTIVES and SemanticGatekeeper._critique_content methods.. [8]
+- **`report_renderer.py`**: Uses `report_renderer.py`: Instantiates the ReportRenderer class and configures it to generate project context reports by passing self.contexts as data and output_file=temp_map_path as the report destination.. [9]
+- **`summary_models.py`**: Uses `summary_models.py`: Instantiates ModuleContext('path') to create module context objects based on provided file paths.; Instantiates ModuleContext by calling its constructor directly, specifying parameters like file_path when creating new instances for module context data storage and management.. [10]
+- **`graph_analyzer.py`**: Uses `graph_analyzer.py`: Instantiates GraphAnalyzer by creating an instance, typically as follows: analyzer = GraphAnalyzer(target_file_path).. [11]
+- **`map_critic.py`**: Uses `map_critic.py`: Instantiates MapCritic using the gatekeeper argument, allowing agent_util.py to leverage map content analysis and module critique instructions.. [12]
 
 ### 👥 Used By (Downstream)
 - **`agent_core.py`**
 
 <details><summary><i>View Verification Claims</i></summary>
 
-> 🆔 `0ae3b9` [1]: Orchestrates service execution by delegating tasks to underlying utilities _(Source: Synthesis (based on [6], [5], [4], [3], [2]))_
-> 🆔 `ef5724` [2]: Assigns ProjectGraph as a dictionary mapping string keys to any values _(Source: ProjectGraph)_
-> 🆔 `b3b652` [3]: Organizes project dependencies, computes processing order, and dynamically generates context data based on source code analysis and critical requirements _(Source: class ProjectSummarizer)_
-> 🆔 `a3fc6e` [4]: Analyzes project structure by constructing dependency graph, summarizing modules, and generating contexts _(Source: project_pulse)_
-> 🆔 `4a219d` [5]: Iteratively refines module contexts through cycles, updating based on source code, upstream API, and critique instructions _(Source: 🔌 ProjectSummarizer.generate_contexts)_
-> 🆔 `3b5bbe` [6]: Generates module context by contextualizing module with critique instruction _(Source: _create_module_context)_
-> 🆔 `25cfae` [7]: Uses `graph_analyzer.py`: Instantiates GraphAnalyzer and executes its run() method to analyze code structure and return a dependency graph as JSON, providing insights into target_file_path's dependencies.. _(Source: Import graph_analyzer.py)_
-> 🆔 `99f698` [8]: Uses `module_contextualizer.py`: Analyzes module context, identifies dependencies, synthesizes role based on usage patterns using ModuleContextualizer class instantiated with path, graph, and dep_contexts arguments.. _(Source: Import module_contextualizer.py)_
-> 🆔 `777231` [9]: Uses `semantic_gatekeeper.py`: Instantiates SemanticGatekeeper to assemble prompts, send them to LLM, parse responses, critique style against banned terms, verify grounding if source provided, and return formatted JSON description.. _(Source: Import semantic_gatekeeper.py)_
-> 🆔 `6c121c` [10]: Uses `report_renderer.py`: Instantiates an instance of ReportRenderer to organize, process, and render context data into structured reports for downstream services.. _(Source: Import report_renderer.py)_
-> 🆔 `92f6c6` [11]: Uses `map_critic.py`: Creates an instance of MapCritic using gatekeeper as argument. _(Source: Import map_critic.py)_
-> 🆔 `c5a952` [12]: Uses `summary_models.py`: Manages and instantiates ModuleContext objects, creates unique identifiers using SHA1 hashing, updates module roles with placeholders, defines claim-based APIs, collects alerts, and organizes module states, dependencies, and contexts within agent_util.py by leveraging the capabilities defined in summary_models.py.. _(Source: Import summary_models.py)_
+> 🆔 `cc4061` [1]: Manages generation of refined module contexts through critique feedback cycles. _(Source: Synthesis (based on [4], [2], [3], [6], [5]))_
+> 🆔 `4cad6c` [2]: Associates string keys with any Python values to represent module dependencies and configurations. _(Source: ProjectGraph)_
+> 🆔 `b05e54` [3]: Analyzes module dependencies, detects cycles, generates refined contexts based on critique feedback across multiple refinement cycles. _(Source: class ProjectSummarizer)_
+> 🆔 `09da61` [4]: Analyzes project files recursively to build a dependency graph, generates contextual summaries based on the graph, and produces module contexts along with processing order for analysis. _(Source: project_pulse)_
+> 🆔 `f7b283` [5]: Analyzes dependencies between modules to generate refined contexts based on critique feedback across multiple refinement cycles. _(Source: 🔌 ProjectSummarizer.generate_contexts)_
+> 🆔 `e92334` [6]: Analyzes module components and dependencies to create contextual module information, adding alerts for detected errors. _(Source: _create_module_context)_
+> 🆔 `52ab77` [7]: Uses `module_contextualizer.py`: Instantiates ModuleContextualizer using 'path', graph, and dep_contexts arguments to analyze module context and contextualize components based on dependencies and usage patterns.. _(Source: Import module_contextualizer.py)_
+> 🆔 `0e14b1` [8]: Uses `semantic_gatekeeper.py`: Instantiates SemanticGatekeeper to enforce strict analysis guidelines and content validation within code evaluation context, managing adherence to technical constraints defined by BANNED_ADJECTIVES and SemanticGatekeeper._critique_content methods.. _(Source: Import semantic_gatekeeper.py)_
+> 🆔 `923aa2` [9]: Uses `report_renderer.py`: Instantiates the ReportRenderer class and configures it to generate project context reports by passing self.contexts as data and output_file=temp_map_path as the report destination.. _(Source: Import report_renderer.py)_
+> 🆔 `539a69` [10]: Uses `summary_models.py`: Instantiates ModuleContext('path') to create module context objects based on provided file paths.; Instantiates ModuleContext by calling its constructor directly, specifying parameters like file_path when creating new instances for module context data storage and management.. _(Source: Import summary_models.py)_
+> 🆔 `afb786` [11]: Uses `graph_analyzer.py`: Instantiates GraphAnalyzer by creating an instance, typically as follows: analyzer = GraphAnalyzer(target_file_path).. _(Source: Import graph_analyzer.py)_
+> 🆔 `d2adba` [12]: Uses `map_critic.py`: Instantiates MapCritic using the gatekeeper argument, allowing agent_util.py to leverage map content analysis and module critique instructions.. _(Source: Import map_critic.py)_
 </details>
 
 ---
 ## 📦 Module: `component_analyst.py`
-**Role:** The module `component_analyst.py` Analyzes code components, generates module skeletons, and orchestrates documentation transformation
+**Role:** The module `component_analyst.py` Analyzes component structures, synthesizes role summaries, and generates module skeletons based on provided method summaries.
 
 **Impact Analysis:** Changes to this module will affect: module_contextualizer.py [1]
 
 ### 🧩 Interface & Logic
-- **`🔌 class ComponentAnalyst`**: Analyzes, interprets, and transforms code components within specified module context [2]
-- **`🔌 class SkeletonTransformer`**: Manages the structure and documentation of function definitions and class bodies, modifying content as needed. [3]
-- **`🔌 🔌 ComponentAnalyst.analyze_components`**: Analyzes components by examining global variables, functions, and classes in specified module context. [4]
-- **`🔌 🔌 ComponentAnalyst.generate_module_skeleton`**: Transforms abstract syntax tree by adding ellipsis to function and class bodies, removing docstrings from classes, and unparse back to source code [5]
-- **`🔌 🔌 SkeletonTransformer.visit_AsyncFunctionDef`**: Modifies function definition body to include ellipsis constant [6]
-- **`🔌 🔌 SkeletonTransformer.visit_ClassDef`**: Removes first docstring line from class definition body [7]
-- **`🔌 🔌 SkeletonTransformer.visit_FunctionDef`**: Modifies function definition body by appending ellipsis expression [8]
+- **`🔌 class ComponentAnalyst`**: Analyzes component structures, synthesizes role summaries, and generates module skeletons based on provided method summaries. [2]
+- **`🔌 class SkeletonTransformer`**: Transforms Python function, async function, and class definitions into simplified structures. [3]
+- **`🔌 🔌 ComponentAnalyst.analyze_components`**: Manages global variables and functions, analyzes their roles, and synthesizes class role summaries while resolving dependencies. [4]
+- **`🔌 🔌 ComponentAnalyst.generate_module_skeleton`**: Analyzes source code structure, transforms function definitions by appending an ellipsis placeholder, processes classes conditionally, and generates a modified AST tree ready for unserialization. [5]
+- **`🔌 🔌 SkeletonTransformer.visit_AsyncFunctionDef`**: Adds an ellipsis expression to the body of an asynchronous function definition node, modifying its structure by replacing statements with a constant placeholder. [6]
+- **`🔌 🔌 SkeletonTransformer.visit_ClassDef`**: Manages class definitions by removing first statement if it has a docstring, ensuring at least one body element via Pass node. [7]
+- **`🔌 🔌 SkeletonTransformer.visit_FunctionDef`**: Replaces function body with an ellipsis expression. [8]
 
 ### 🔗 Uses (Upstream)
-- **`summary_models.py`**: Uses `summary_models.py`: Analyzes and manages module identifiers, public APIs, dependencies, claims, and alerts using methods from `summary_models.py` in `component_analyst.py`.. [9]
-- **`semantic_gatekeeper.py`**: Uses `semantic_gatekeeper.py`: Instantiates SemanticGatekeeper to configure component logic and execution parameters for analyst module interaction.. [10]
+- **`semantic_gatekeeper.py`**: Uses `semantic_gatekeeper.py`: Enforces technical analysis guidelines and content validation within code evaluation context using methods from SemanticGatekeeper to handle errors, style critiques, and monitor adherence to specified constraints.. [9]
+- **`summary_models.py`**: Uses `summary_models.py`: Configures the ModuleContext and Claim data structures from summary_models.py to manage module context metadata, claims, relationships between modules, and supporting claim identifiers for generating grounded text descriptions.; Configures ModuleContext and Claim usage to analyze components, manage alerts, and define public API entries while updating dependency contexts and generating grounded text summaries based on claims.. [10]
 
 ### 👥 Used By (Downstream)
 - **`module_contextualizer.py`**
 
 <details><summary><i>View Verification Claims</i></summary>
 
-> 🆔 `0740a0` [1]: Analyzes code components, generates module skeletons, and orchestrates documentation transformation _(Source: Synthesis (based on [4], [7], [3], [5], [8], [2], [6]))_
-> 🆔 `9ad4f4` [2]: Analyzes, interprets, and transforms code components within specified module context _(Source: class ComponentAnalyst)_
-> 🆔 `43d799` [3]: Manages the structure and documentation of function definitions and class bodies, modifying content as needed. _(Source: class SkeletonTransformer)_
-> 🆔 `15dcff` [4]: Analyzes components by examining global variables, functions, and classes in specified module context. _(Source: 🔌 ComponentAnalyst.analyze_components)_
-> 🆔 `7ccace` [5]: Transforms abstract syntax tree by adding ellipsis to function and class bodies, removing docstrings from classes, and unparse back to source code _(Source: 🔌 ComponentAnalyst.generate_module_skeleton)_
-> 🆔 `c00299` [6]: Modifies function definition body to include ellipsis constant _(Source: 🔌 SkeletonTransformer.visit_AsyncFunctionDef)_
-> 🆔 `4256d2` [7]: Removes first docstring line from class definition body _(Source: 🔌 SkeletonTransformer.visit_ClassDef)_
-> 🆔 `7e2976` [8]: Modifies function definition body by appending ellipsis expression _(Source: 🔌 SkeletonTransformer.visit_FunctionDef)_
-> 🆔 `770f9b` [9]: Uses `summary_models.py`: Analyzes and manages module identifiers, public APIs, dependencies, claims, and alerts using methods from `summary_models.py` in `component_analyst.py`.. _(Source: Import summary_models.py)_
-> 🆔 `ef2392` [10]: Uses `semantic_gatekeeper.py`: Instantiates SemanticGatekeeper to configure component logic and execution parameters for analyst module interaction.. _(Source: Import semantic_gatekeeper.py)_
+> 🆔 `c019ef` [1]: Analyzes component structures, synthesizes role summaries, and generates module skeletons based on provided method summaries. _(Source: Synthesis (based on [5], [4], [7], [3], [2], [6], [8]))_
+> 🆔 `ca51e1` [2]: Analyzes component structures, synthesizes role summaries, and generates module skeletons based on provided method summaries. _(Source: class ComponentAnalyst)_
+> 🆔 `9e043a` [3]: Transforms Python function, async function, and class definitions into simplified structures. _(Source: class SkeletonTransformer)_
+> 🆔 `4032dd` [4]: Manages global variables and functions, analyzes their roles, and synthesizes class role summaries while resolving dependencies. _(Source: 🔌 ComponentAnalyst.analyze_components)_
+> 🆔 `154e31` [5]: Analyzes source code structure, transforms function definitions by appending an ellipsis placeholder, processes classes conditionally, and generates a modified AST tree ready for unserialization. _(Source: 🔌 ComponentAnalyst.generate_module_skeleton)_
+> 🆔 `f419fb` [6]: Adds an ellipsis expression to the body of an asynchronous function definition node, modifying its structure by replacing statements with a constant placeholder. _(Source: 🔌 SkeletonTransformer.visit_AsyncFunctionDef)_
+> 🆔 `7146da` [7]: Manages class definitions by removing first statement if it has a docstring, ensuring at least one body element via Pass node. _(Source: 🔌 SkeletonTransformer.visit_ClassDef)_
+> 🆔 `feb67f` [8]: Replaces function body with an ellipsis expression. _(Source: 🔌 SkeletonTransformer.visit_FunctionDef)_
+> 🆔 `932704` [9]: Uses `semantic_gatekeeper.py`: Enforces technical analysis guidelines and content validation within code evaluation context using methods from SemanticGatekeeper to handle errors, style critiques, and monitor adherence to specified constraints.. _(Source: Import semantic_gatekeeper.py)_
+> 🆔 `3a2fe5` [10]: Uses `summary_models.py`: Configures the ModuleContext and Claim data structures from summary_models.py to manage module context metadata, claims, relationships between modules, and supporting claim identifiers for generating grounded text descriptions.; Configures ModuleContext and Claim usage to analyze components, manage alerts, and define public API entries while updating dependency contexts and generating grounded text summaries based on claims.. _(Source: Import summary_models.py)_
 </details>
 
 ---
 ## 📦 Module: `dependency_analyst.py`
-**Role:** The module `dependency_analyst.py` Analyzes dependency context, sanitizes input text, and generates explanations based on analysis results
+**Role:** The module `dependency_analyst.py` Analyzes module dependencies by parsing import paths, extracting relevant data from upstream contexts, identifying used symbols, generating usage snippets, and creating verification sources for each dependency.
 
 **Impact Analysis:** Changes to this module will affect: module_contextualizer.py [1]
 
 ### 🧩 Interface & Logic
-- **`🔌 class DependencyAnalyst`**: Analyzes dependency context, sanitizes input text, and generates explanations based on analysis results [2]
-- **`🔌 clean_ref`**: Removes bracketed reference patterns from input text using regex and trims whitespace [3]
-- **`🔌 🔌 DependencyAnalyst.analyze_dependencies`**: Analyzes dependency context for each import, determines used symbols, extracts relevant state and logic, and generates explanation labels based on analysis results. [4]
+- **`🔌 class DependencyAnalyst`**: Handles module dependency analysis by parsing import paths, extracting relevant data, identifying used symbols, generating usage snippets, and creating verification sources for each dependency. [2]
+- **`🔌 clean_ref`**: Finds bracketed references in text and removes them, returning the cleaned string. [3]
+- **`🔌 🔌 DependencyAnalyst.analyze_dependencies`**: Analyzes module dependencies by parsing import paths, extracting relevant data from upstream contexts, identifying used symbols, generating usage snippets, and creating verification sources for each dependency. [4]
 
 ### 🔗 Uses (Upstream)
-- **`summary_models.py`**: Uses `summary_models.py`: Analyzes dependencies by creating unique identifiers, managing module contexts with explanations and claim placeholders, adding dependency context to modules, and combining text, references, module paths, and explanations using ModuleContext class and Claim function.. [5]
-- **`semantic_gatekeeper.py`**: Uses `semantic_gatekeeper.py`: Instantiates SemanticGatekeeper class and invokes its run() method to generate and analyze prompts for language models, ensuring adherence to banned adjectives defined in BANNED_ADJECTIVES constant from semantic_gatekeeper.py.; Integrates configuration parameters and semantic validation routines from semantic_gatekeeper.py to enhance data handling and model execution fidelity in dependency_analyst.py. [6]
-- **`task_executor.py`**: Uses `task_executor.py`: Instantiates the TaskExecutor class. [7]
+- **`task_executor.py`**: Uses `task_executor.py`: Creates an instance of TaskExecutor, initializing it with a SemanticGatekeeper and configuring timeout parameters via TaskExecutor.solve_complex_task.. [5]
+- **`semantic_gatekeeper.py`**: Uses `semantic_gatekeeper.py`: Instantiates SemanticGatekeeper in dependency_analyst.py to enforce technical analysis constraints and perform content validation within code evaluation context.; Initializes a SemanticGatekeeper instance and passes BANNED_ADJECTIVES as part of the constructor arguments to enforce content validation constraints during code evaluation processes.. [6]
+- **`summary_models.py`**: Uses `summary_models.py`: Configures Claim objects from summary_models.py to generate grounded text descriptions for claims based on module paths and supporting evidence in dependency_analyst.py.; Instantiates ModuleContext instances to manage module dependencies, add context explanations, generate claims for imports, analyze dependency relationships, register dependent contexts, and update internal state tracking dependencies.. [7]
 
 ### 👥 Used By (Downstream)
 - **`module_contextualizer.py`**
 
 <details><summary><i>View Verification Claims</i></summary>
 
-> 🆔 `1b46c6` [1]: Analyzes dependency context, sanitizes input text, and generates explanations based on analysis results _(Source: Synthesis (based on [3], [4], [2]))_
-> 🆔 `e15564` [2]: Analyzes dependency context, sanitizes input text, and generates explanations based on analysis results _(Source: class DependencyAnalyst)_
-> 🆔 `4033bb` [3]: Removes bracketed reference patterns from input text using regex and trims whitespace _(Source: clean_ref)_
-> 🆔 `bbf90e` [4]: Analyzes dependency context for each import, determines used symbols, extracts relevant state and logic, and generates explanation labels based on analysis results. _(Source: 🔌 DependencyAnalyst.analyze_dependencies)_
-> 🆔 `18d9d4` [5]: Uses `summary_models.py`: Analyzes dependencies by creating unique identifiers, managing module contexts with explanations and claim placeholders, adding dependency context to modules, and combining text, references, module paths, and explanations using ModuleContext class and Claim function.. _(Source: Import summary_models.py)_
-> 🆔 `3632a0` [6]: Uses `semantic_gatekeeper.py`: Instantiates SemanticGatekeeper class and invokes its run() method to generate and analyze prompts for language models, ensuring adherence to banned adjectives defined in BANNED_ADJECTIVES constant from semantic_gatekeeper.py.; Integrates configuration parameters and semantic validation routines from semantic_gatekeeper.py to enhance data handling and model execution fidelity in dependency_analyst.py. _(Source: Import semantic_gatekeeper.py)_
-> 🆔 `d481fd` [7]: Uses `task_executor.py`: Instantiates the TaskExecutor class. _(Source: Import task_executor.py)_
+> 🆔 `0f2d5b` [1]: Analyzes module dependencies by parsing import paths, extracting relevant data from upstream contexts, identifying used symbols, generating usage snippets, and creating verification sources for each dependency. _(Source: Synthesis (based on [2], [3], [4]))_
+> 🆔 `57407a` [2]: Handles module dependency analysis by parsing import paths, extracting relevant data, identifying used symbols, generating usage snippets, and creating verification sources for each dependency. _(Source: class DependencyAnalyst)_
+> 🆔 `cd62ce` [3]: Finds bracketed references in text and removes them, returning the cleaned string. _(Source: clean_ref)_
+> 🆔 `e9c6b5` [4]: Analyzes module dependencies by parsing import paths, extracting relevant data from upstream contexts, identifying used symbols, generating usage snippets, and creating verification sources for each dependency. _(Source: 🔌 DependencyAnalyst.analyze_dependencies)_
+> 🆔 `2ff387` [5]: Uses `task_executor.py`: Creates an instance of TaskExecutor, initializing it with a SemanticGatekeeper and configuring timeout parameters via TaskExecutor.solve_complex_task.. _(Source: Import task_executor.py)_
+> 🆔 `39ab17` [6]: Uses `semantic_gatekeeper.py`: Instantiates SemanticGatekeeper in dependency_analyst.py to enforce technical analysis constraints and perform content validation within code evaluation context.; Initializes a SemanticGatekeeper instance and passes BANNED_ADJECTIVES as part of the constructor arguments to enforce content validation constraints during code evaluation processes.. _(Source: Import semantic_gatekeeper.py)_
+> 🆔 `bed631` [7]: Uses `summary_models.py`: Configures Claim objects from summary_models.py to generate grounded text descriptions for claims based on module paths and supporting evidence in dependency_analyst.py.; Instantiates ModuleContext instances to manage module dependencies, add context explanations, generate claims for imports, analyze dependency relationships, register dependent contexts, and update internal state tracking dependencies.. _(Source: Import summary_models.py)_
 </details>
 
 ---
 ## 📦 Module: `map_critic.py`
-**Role:** The module `map_critic.py` Analyzes project documentation components, organizes modules, critiques style against banned terms, and orchestrates feedback integration
+**Role:** The module `map_critic.py` Analyzes project map content to identify critique-worthy modules and extracts instructions for up to three modules.
 
 **Impact Analysis:** Changes to this module will affect: agent_util.py [1]
 
 ### 🧩 Interface & Logic
-- **`🔌 class MapCritic`**: Organizes, aggregates, analyzes, and evaluates project documentation components [2]
-- **`🔌 🔌 MapCritic.critique`**: Parses project map content into modules, analyzes each module's instructions, and appends critiques to list up to three [3]
+- **`🔌 class MapCritic`**: Analyzes project map content to identify critique-worthy modules and extracts instructions for up to three modules. [2]
+- **`🔌 🔌 MapCritic.critique`**: Analyzes project map content to identify critique-worthy modules, extracting instructions for up to three modules. [3]
 
 ### 🔗 Uses (Upstream)
-- **`semantic_gatekeeper.py`**: Uses `semantic_gatekeeper.py`: Instantiates SemanticGatekeeper within __init__ method and calls run() function in map_critic.py. [4]
+- **`semantic_gatekeeper.py`**: Uses `semantic_gatekeeper.py`: Instantiates an instance of SemanticGatekeeper to enforce technical analysis guidelines and content validation.. [4]
 
 ### 👥 Used By (Downstream)
 - **`agent_util.py`**
 
 <details><summary><i>View Verification Claims</i></summary>
 
-> 🆔 `e3a269` [1]: Analyzes project documentation components, organizes modules, critiques style against banned terms, and orchestrates feedback integration _(Source: Synthesis (based on [3], [2]))_
-> 🆔 `dfc021` [2]: Organizes, aggregates, analyzes, and evaluates project documentation components _(Source: class MapCritic)_
-> 🆔 `294d9f` [3]: Parses project map content into modules, analyzes each module's instructions, and appends critiques to list up to three _(Source: 🔌 MapCritic.critique)_
-> 🆔 `e30b04` [4]: Uses `semantic_gatekeeper.py`: Instantiates SemanticGatekeeper within __init__ method and calls run() function in map_critic.py. _(Source: Import semantic_gatekeeper.py)_
+> 🆔 `f9abbe` [1]: Analyzes project map content to identify critique-worthy modules and extracts instructions for up to three modules. _(Source: Synthesis (based on [3], [2]))_
+> 🆔 `86c7fc` [2]: Analyzes project map content to identify critique-worthy modules and extracts instructions for up to three modules. _(Source: class MapCritic)_
+> 🆔 `41b733` [3]: Analyzes project map content to identify critique-worthy modules, extracting instructions for up to three modules. _(Source: 🔌 MapCritic.critique)_
+> 🆔 `9800da` [4]: Uses `semantic_gatekeeper.py`: Instantiates an instance of SemanticGatekeeper to enforce technical analysis guidelines and content validation.. _(Source: Import semantic_gatekeeper.py)_
 </details>
 
 ---
 ## 📦 Module: `map_synthesizer.py`
-**Role:** The module `map_synthesizer.py` Orchestrates the synthesis of modules into categorized groups, synthesizes each group, then synthesizes overall system architecture
+**Role:** The module `map_synthesizer.py` Analyzes module contexts, categorizes them into groups based on archetype attributes, synthesizes summaries for each group, and generates a final system synthesis.
 
 **Impact Analysis:** Changes to this module will affect: agent_core.py [1]
 
 ### 🧩 Interface & Logic
-- **`🔌 class MapSynthesizer`**: Organizes and categorizes modules into structured groups for systematic processing [2]
-- **`🔌 🔌 MapSynthesizer.synthesize`**: Aggregates modules into categorized groups based on processing order, synthesizes each group, then synthesizes overall system [3]
+- **`🔌 class MapSynthesizer`**: Categorizes module contexts, synthesizes summaries for each group, and generates cohesive system overviews. [2]
+- **`🔌 🔌 MapSynthesizer.synthesize`**: Analyzes module contexts, categorizes them into groups based on archetype attributes, synthesizes summaries for each group, and generates a final system synthesis. [3]
 
 ### 🔗 Uses (Upstream)
-- **`summary_models.py`**: Uses `summary_models.py`: Analyzes and integrates module configurations using ModuleContext from summary_models.py in map_synthesizer.py. [4]
-- **`llm_util.py`**: Uses `llm_util.py`: Invokes the chat_llm function to generate responses based on parsed input messages and constructed prompts, extracting content and handling exceptions as necessary for downstream processing in map_synthesizer.py.. [5]
-- **`semantic_gatekeeper.py`**: Uses `semantic_gatekeeper.py`: Initializes and configures the SemanticGatekeeper instance within map_synthesizer.py to manage system configuration, define model execution parameters, and orchestrate prompt generation for language models.. [6]
-- **`agent_config.py`**: Uses `agent_config.py`: Determines the model identifier for processing data within map_synthesizer.py using constants from agent_config.py. [7]
+- **`agent_config.py`**: Uses `agent_config.py`: configures the timeout settings and specifies the tiny-h model identifier for language modeling configuration in map_synthesizer.py based on DEFAULT_MODEL from agent_config.py.. [4]
+- **`semantic_gatekeeper.py`**: Uses `semantic_gatekeeper.py`: Initializes SemanticGatekeeper with specified gatekeeper parameter and enforces technical analysis guidelines through strict adherence to constraints defined by BANNED_ADJECTIVES and SemanticGatekeeper._critique_content methods.. [5]
+- **`llm_util.py`**: Uses `llm_util.py`: Calls the 'run()' method to execute the LLM generation process after formatting the user prompt into the required input structure for the chat_llm function from llm_util.py.. [6]
+- **`summary_models.py`**: Uses `summary_models.py`: configures ModuleContext to represent claims, grounded text records, alerts, and module context metadata within summary_models.py for dependency analysis in map_synthesizer.py.. [7]
 
 ### 👥 Used By (Downstream)
 - **`agent_core.py`**
 
 <details><summary><i>View Verification Claims</i></summary>
 
-> 🆔 `15c2e3` [1]: Orchestrates the synthesis of modules into categorized groups, synthesizes each group, then synthesizes overall system architecture _(Source: Synthesis (based on [2], [3]))_
-> 🆔 `16518b` [2]: Organizes and categorizes modules into structured groups for systematic processing _(Source: class MapSynthesizer)_
-> 🆔 `c597ac` [3]: Aggregates modules into categorized groups based on processing order, synthesizes each group, then synthesizes overall system _(Source: 🔌 MapSynthesizer.synthesize)_
-> 🆔 `eb4591` [4]: Uses `summary_models.py`: Analyzes and integrates module configurations using ModuleContext from summary_models.py in map_synthesizer.py. _(Source: Import summary_models.py)_
-> 🆔 `ff7f98` [5]: Uses `llm_util.py`: Invokes the chat_llm function to generate responses based on parsed input messages and constructed prompts, extracting content and handling exceptions as necessary for downstream processing in map_synthesizer.py.. _(Source: Import llm_util.py)_
-> 🆔 `60f444` [6]: Uses `semantic_gatekeeper.py`: Initializes and configures the SemanticGatekeeper instance within map_synthesizer.py to manage system configuration, define model execution parameters, and orchestrate prompt generation for language models.. _(Source: Import semantic_gatekeeper.py)_
-> 🆔 `25f419` [7]: Uses `agent_config.py`: Determines the model identifier for processing data within map_synthesizer.py using constants from agent_config.py. _(Source: Import agent_config.py)_
+> 🆔 `091c76` [1]: Analyzes module contexts, categorizes them into groups based on archetype attributes, synthesizes summaries for each group, and generates a final system synthesis. _(Source: Synthesis (based on [3], [2]))_
+> 🆔 `b1aa1f` [2]: Categorizes module contexts, synthesizes summaries for each group, and generates cohesive system overviews. _(Source: class MapSynthesizer)_
+> 🆔 `acdb0a` [3]: Analyzes module contexts, categorizes them into groups based on archetype attributes, synthesizes summaries for each group, and generates a final system synthesis. _(Source: 🔌 MapSynthesizer.synthesize)_
+> 🆔 `ceee97` [4]: Uses `agent_config.py`: configures the timeout settings and specifies the tiny-h model identifier for language modeling configuration in map_synthesizer.py based on DEFAULT_MODEL from agent_config.py.. _(Source: Import agent_config.py)_
+> 🆔 `5d017b` [5]: Uses `semantic_gatekeeper.py`: Initializes SemanticGatekeeper with specified gatekeeper parameter and enforces technical analysis guidelines through strict adherence to constraints defined by BANNED_ADJECTIVES and SemanticGatekeeper._critique_content methods.. _(Source: Import semantic_gatekeeper.py)_
+> 🆔 `170332` [6]: Uses `llm_util.py`: Calls the 'run()' method to execute the LLM generation process after formatting the user prompt into the required input structure for the chat_llm function from llm_util.py.. _(Source: Import llm_util.py)_
+> 🆔 `8f6bd2` [7]: Uses `summary_models.py`: configures ModuleContext to represent claims, grounded text records, alerts, and module context metadata within summary_models.py for dependency analysis in map_synthesizer.py.. _(Source: Import summary_models.py)_
 </details>
 
 ---
 ## 📦 Module: `report_renderer.py`
-**Role:** The module `report_renderer.py` Organizes, processes, and renders context data into structured reports for downstream services
+**Role:** The module `report_renderer.py` Manages project context data, renders reports, and handles module documentation.
 
 **Impact Analysis:** Changes to this module will affect: agent_core.py, agent_util.py [1]
 
 ### 🧩 Interface & Logic
-- **`🔌 class ReportRenderer`**: Organizes and processes data for report generation [2]
-- **`🔌 replace_ref`**: Parses text for reference patterns, substitutes them with unique identifiers stored in claim_map [3]
-- **`🔌 sub`**: Manages claim references by assigning unique IDs, replacing refs in string with their corresponding ID [4]
-- **`🔌 🔌 ReportRenderer.render`**: Collects context data, organizes by categories, renders module details, writes to output file [5]
+- **`🔌 class ReportRenderer`**: Manages project context data, renders reports, and handles module documentation. [2]
+- **`🔌 replace_ref`**: Searches for references in text, replaces them with numbered identifiers from claim_map. [3]
+- **`🔌 sub`**: Maps reference IDs to unique indices, replacing matched references in input text with indexed notations. [4]
+- **`🔌 🔌 ReportRenderer.render`**: Generates a project context map report, detailing modules, dependencies, and archetype groups in a structured format. [5]
 
 ### 🔗 Uses (Upstream)
-- **`summary_models.py`**: Uses `summary_models.py`: Initializes summary model configuration by importing ModuleContext and instantiating the class with context_map and output_file parameters, invoking __init__ and _render_module methods.. [6]
+- **`summary_models.py`**: Uses `summary_models.py`: Configures ModuleContext objects through the _render_module method, managing module dependencies and context relationships for report generation.. [6]
 
 ### 👥 Used By (Downstream)
 - **`agent_core.py`**
@@ -257,28 +257,28 @@
 
 <details><summary><i>View Verification Claims</i></summary>
 
-> 🆔 `79d616` [1]: Organizes, processes, and renders context data into structured reports for downstream services _(Source: Synthesis (based on [3], [5], [4], [2]))_
-> 🆔 `da76a8` [2]: Organizes and processes data for report generation _(Source: class ReportRenderer)_
-> 🆔 `637c6c` [3]: Parses text for reference patterns, substitutes them with unique identifiers stored in claim_map _(Source: replace_ref)_
-> 🆔 `c714ba` [4]: Manages claim references by assigning unique IDs, replacing refs in string with their corresponding ID _(Source: sub)_
-> 🆔 `83831d` [5]: Collects context data, organizes by categories, renders module details, writes to output file _(Source: 🔌 ReportRenderer.render)_
-> 🆔 `fa66f4` [6]: Uses `summary_models.py`: Initializes summary model configuration by importing ModuleContext and instantiating the class with context_map and output_file parameters, invoking __init__ and _render_module methods.. _(Source: Import summary_models.py)_
+> 🆔 `d1aaf9` [1]: Manages project context data, renders reports, and handles module documentation. _(Source: Synthesis (based on [2], [5], [4], [3]))_
+> 🆔 `308600` [2]: Manages project context data, renders reports, and handles module documentation. _(Source: class ReportRenderer)_
+> 🆔 `8fe851` [3]: Searches for references in text, replaces them with numbered identifiers from claim_map. _(Source: replace_ref)_
+> 🆔 `40b8d9` [4]: Maps reference IDs to unique indices, replacing matched references in input text with indexed notations. _(Source: sub)_
+> 🆔 `319709` [5]: Generates a project context map report, detailing modules, dependencies, and archetype groups in a structured format. _(Source: 🔌 ReportRenderer.render)_
+> 🆔 `a0ee16` [6]: Uses `summary_models.py`: Configures ModuleContext objects through the _render_module method, managing module dependencies and context relationships for report generation.. _(Source: Import summary_models.py)_
 </details>
 
 ---
 ## 📦 Module: `semantic_gatekeeper.py`
-**Role:** The module `semantic_gatekeeper.py` Manages system configuration, defines model execution parameters, and orchestrates prompt generation for language models
+**Role:** The module `semantic_gatekeeper.py` Manages strict adherence to technical analysis guidelines and content validation within code evaluation context, enforcing constraints defined by BANNED_ADJECTIVES and SemanticGatekeeper._critique_content methods.
 
 **Impact Analysis:** Changes to this module will affect: agent_core.py, agent_util.py, component_analyst.py, dependency_analyst.py, map_critic.py, map_synthesizer.py, module_contextualizer.py, task_executor.py [1]
 
 ### 🧩 Interface & Logic
-- **`🔌 BANNED_ADJECTIVES`**: Defines a set containing disallowed adjectives for use in code [2]
-- **`🔌 class SemanticGatekeeper`**: Organizes, analyzes, and structures data flow within the system [3]
-- **`🔌 🔌 SemanticGatekeeper.execute_with_feedback`**: Assembles final prompt, sends to LLM for analysis, parses response into JSON with specified key, critiques style against banned terms, verifies grounding if source provided, and returns formatted JSON description. [4]
+- **`🔌 BANNED_ADJECTIVES`**: Defines a set of restricted adjectives that cannot be used in certain contexts. [2]
+- **`🔌 class SemanticGatekeeper`**: Monitors and enforces strict adherence to technical analysis guidelines within the context of code evaluation and content validation. [3]
+- **`🔌 🔌 SemanticGatekeeper.execute_with_feedback`**: Analyzes input prompt to generate strict JSON output conforming to specified constraints, handling errors and style critiques across multiple attempts. [4]
 
 ### 🔗 Uses (Upstream)
-- **`llm_util.py`**: Uses `llm_util.py`: Calls the `chat_llm` function from `llm_util.py`, passing in the `DEFAULT_MODEL` and either `messages` or `verify_prompt` to generate responses.. [5]
-- **`agent_config.py`**: Uses `agent_config.py`: Defines and passes the model identifier to downstream functions for LLM interaction in semantic_gatekeeper.py. [6]
+- **`agent_config.py`**: Uses `agent_config.py`: Configures DEFAULT_MODEL from agent_config.py to initialize the chat_llm function in semantic_gatekeeper.py.. [5]
+- **`llm_util.py`**: Uses `llm_util.py`: Calls chat_llm() to process user messages and generate responses for each message in the input list.. [6]
 
 ### 👥 Used By (Downstream)
 - **`agent_core.py`**
@@ -292,26 +292,26 @@
 
 <details><summary><i>View Verification Claims</i></summary>
 
-> 🆔 `e56834` [1]: Manages system configuration, defines model execution parameters, and orchestrates prompt generation for language models _(Source: Synthesis (based on [4], [3], [2]))_
-> 🆔 `f35389` [2]: Defines a set containing disallowed adjectives for use in code _(Source: BANNED_ADJECTIVES)_
-> 🆔 `b350d6` [3]: Organizes, analyzes, and structures data flow within the system _(Source: class SemanticGatekeeper)_
-> 🆔 `a1e4e2` [4]: Assembles final prompt, sends to LLM for analysis, parses response into JSON with specified key, critiques style against banned terms, verifies grounding if source provided, and returns formatted JSON description. _(Source: 🔌 SemanticGatekeeper.execute_with_feedback)_
-> 🆔 `533ba0` [5]: Uses `llm_util.py`: Calls the `chat_llm` function from `llm_util.py`, passing in the `DEFAULT_MODEL` and either `messages` or `verify_prompt` to generate responses.. _(Source: Import llm_util.py)_
-> 🆔 `ae1cf0` [6]: Uses `agent_config.py`: Defines and passes the model identifier to downstream functions for LLM interaction in semantic_gatekeeper.py. _(Source: Import agent_config.py)_
+> 🆔 `4f6369` [1]: Manages strict adherence to technical analysis guidelines and content validation within code evaluation context, enforcing constraints defined by BANNED_ADJECTIVES and SemanticGatekeeper._critique_content methods. _(Source: Synthesis (based on [4], [2], [3]))_
+> 🆔 `1f7d58` [2]: Defines a set of restricted adjectives that cannot be used in certain contexts. _(Source: BANNED_ADJECTIVES)_
+> 🆔 `4d9360` [3]: Monitors and enforces strict adherence to technical analysis guidelines within the context of code evaluation and content validation. _(Source: class SemanticGatekeeper)_
+> 🆔 `137f5f` [4]: Analyzes input prompt to generate strict JSON output conforming to specified constraints, handling errors and style critiques across multiple attempts. _(Source: 🔌 SemanticGatekeeper.execute_with_feedback)_
+> 🆔 `c69578` [5]: Uses `agent_config.py`: Configures DEFAULT_MODEL from agent_config.py to initialize the chat_llm function in semantic_gatekeeper.py.. _(Source: Import agent_config.py)_
+> 🆔 `c8205b` [6]: Uses `llm_util.py`: Calls chat_llm() to process user messages and generate responses for each message in the input list.. _(Source: Import llm_util.py)_
 </details>
 
 ---
 ## 📦 Module: `task_executor.py`
-**Role:** The module `task_executor.py` Orchestrates task execution, analyzes context, generates structured plans, delegates to underlying services, and synthesizes results
+**Role:** The module `task_executor.py` Analyzes task requirements, processes context data using SemanticGatekeeper for feedback, and generates actionable insights through TaskExecutor.solve_complex_task method.
 
 **Impact Analysis:** Changes to this module will affect: dependency_analyst.py, module_contextualizer.py [1]
 
 ### 🧩 Interface & Logic
-- **`🔌 class TaskExecutor`**: Handles the processing of gatekeeper responses and organizes execution flow [2]
-- **`🔌 🔌 TaskExecutor.solve_complex_task`**: Analyzes goal context to generate structured plan, executes sub-questions, gathers evidence, and summarizes intent as concise action verb. [3]
+- **`🔌 class TaskExecutor`**: Manages a system for handling tasks, processing responses, and deriving actionable insights. [2]
+- **`🔌 🔌 TaskExecutor.solve_complex_task`**: Analyzes context data to generate technical sub-questions, verifies evidence through execution prompts, and synthesizes findings into an intent description for the given goal. [3]
 
 ### 🔗 Uses (Upstream)
-- **`semantic_gatekeeper.py`**: Uses `semantic_gatekeeper.py`: Instantiates SemanticGatekeeper as gatekeeper and calls its run method within task_executor.py. [4]
+- **`semantic_gatekeeper.py`**: Uses `semantic_gatekeeper.py`: Instantiates SemanticGatekeeper to enforce technical analysis guidelines within task_executor.py.. [4]
 
 ### 👥 Used By (Downstream)
 - **`dependency_analyst.py`**
@@ -319,22 +319,22 @@
 
 <details><summary><i>View Verification Claims</i></summary>
 
-> 🆔 `35b3be` [1]: Orchestrates task execution, analyzes context, generates structured plans, delegates to underlying services, and synthesizes results _(Source: Synthesis (based on [2], [3]))_
-> 🆔 `ada7b1` [2]: Handles the processing of gatekeeper responses and organizes execution flow _(Source: class TaskExecutor)_
-> 🆔 `b079d0` [3]: Analyzes goal context to generate structured plan, executes sub-questions, gathers evidence, and summarizes intent as concise action verb. _(Source: 🔌 TaskExecutor.solve_complex_task)_
-> 🆔 `bd4820` [4]: Uses `semantic_gatekeeper.py`: Instantiates SemanticGatekeeper as gatekeeper and calls its run method within task_executor.py. _(Source: Import semantic_gatekeeper.py)_
+> 🆔 `97c1a8` [1]: Analyzes task requirements, processes context data using SemanticGatekeeper for feedback, and generates actionable insights through TaskExecutor.solve_complex_task method. _(Source: Synthesis (based on [3], [2]))_
+> 🆔 `684c97` [2]: Manages a system for handling tasks, processing responses, and deriving actionable insights. _(Source: class TaskExecutor)_
+> 🆔 `5b88c1` [3]: Analyzes context data to generate technical sub-questions, verifies evidence through execution prompts, and synthesizes findings into an intent description for the given goal. _(Source: 🔌 TaskExecutor.solve_complex_task)_
+> 🆔 `a4025f` [4]: Uses `semantic_gatekeeper.py`: Instantiates SemanticGatekeeper to enforce technical analysis guidelines within task_executor.py.. _(Source: Import semantic_gatekeeper.py)_
 </details>
 
 ---
 ## 🛠️ Utilities
 
 ## 📦 Module: `llm_util.py`
-**Role:** The module `llm_util.py` Provides parsing, prompting, and response generation functionality to downstream components like agent_core.py, map_synthesizer.py, and semantic_gatekeeper.py
+**Role:** The module `llm_util.py` Provides an interface for processing user prompts or messages, formatting them into LLM-compatible structures, and delegating to the Ollama chat API for generation, returning the model's response content.
 
 **Impact Analysis:** Changes to this module will affect: agent_core.py, map_synthesizer.py, semantic_gatekeeper.py [1]
 
 ### 🧩 Interface & Logic
-- **`🔌 chat_llm`**: Parses input messages, constructs prompt, calls LLM interface to generate response, extracts content, handles exceptions [2]
+- **`🔌 chat_llm`**: Processes user prompt or messages, formats them into an LLM-compatible structure, delegates to Ollama chat API for generation, and returns the model's response content. [2]
 
 ### 👥 Used By (Downstream)
 - **`agent_core.py`**
@@ -343,61 +343,61 @@
 
 <details><summary><i>View Verification Claims</i></summary>
 
-> 🆔 `f4d2c8` [1]: Provides parsing, prompting, and response generation functionality to downstream components like agent_core.py, map_synthesizer.py, and semantic_gatekeeper.py _(Source: Synthesis (based on [2]))_
-> 🆔 `efe142` [2]: Parses input messages, constructs prompt, calls LLM interface to generate response, extracts content, handles exceptions _(Source: chat_llm)_
+> 🆔 `bcebe1` [1]: Provides an interface for processing user prompts or messages, formatting them into LLM-compatible structures, and delegating to the Ollama chat API for generation, returning the model's response content. _(Source: Synthesis (based on [2]))_
+> 🆔 `5fb0bc` [2]: Processes user prompt or messages, formats them into an LLM-compatible structure, delegates to Ollama chat API for generation, and returns the model's response content. _(Source: chat_llm)_
 </details>
 
 ---
 ## 📦 Data Models
 
 ## 📦 Module: `graph_analyzer.py`
-**Role:** The module `graph_analyzer.py` Analyzes code structure, builds dependency graph using depth-first search
+**Role:** The module `graph_analyzer.py` Defines the systemic role of `graph_analyzer.py` as an entity that analyzes project dependencies and source code for TODO comments, building a graphical representation of relationships.
 
 **Impact Analysis:** Changes to this module will affect: agent_util.py [1]
 
 ### 🧩 Interface & Logic
-- **`🔌 class CodeEntityVisitor`**: Analyzes code structure, collects module data, records interactions, and captures entity details [2]
-- **`🔌 class GraphAnalyzer`**: Collects, parses, and organizes project files and dependencies using depth-first search algorithm [3]
-- **`🔌 🔌 CodeEntityVisitor.leave_ClassDef`**: Removes class definition from current context and header stack [4]
-- **`🔌 🔌 CodeEntityVisitor.leave_FunctionDef`**: Maintains current context stack by popping when leaving function definition [5]
-- **`🔌 🔌 CodeEntityVisitor.leave_SimpleStatementLine`**: Updates current statement attribute to None [6]
-- **`🔌 🔌 CodeEntityVisitor.visit_AnnAssign`**: Collects annotated variable names and their source code for globals [7]
-- **`🔌 🔌 CodeEntityVisitor.visit_Assign`**: Captures global assignments from module node [8]
-- **`🔌 🔌 CodeEntityVisitor.visit_Call`**: Records function call interactions in cross-module map [9]
-- **`🔌 🔌 CodeEntityVisitor.visit_ClassDef`**: Captures class name, parses source code, retrieves docstring, extracts bases, constructs header, stores entity data [10]
-- **`🔌 🔌 CodeEntityVisitor.visit_FunctionDef`**: Captures function signature details, headers, docstrings, source code snippets, implementation status, and categorizes functions as methods or standalone based on context path. [11]
-- **`🔌 🔌 CodeEntityVisitor.visit_Import`**: Collects external module names from import node [12]
-- **`🔌 🔌 CodeEntityVisitor.visit_ImportFrom`**: Collects external module names and relative import paths for ImportFrom nodes, updates state accordingly [13]
-- **`🔌 🔌 CodeEntityVisitor.visit_Name`**: Records interactions for name nodes [14]
-- **`🔌 🔌 CodeEntityVisitor.visit_SimpleStatementLine`**: Updates current statement reference within visitor [15]
-- **`🔌 🔌 GraphAnalyzer.analyze`**: Builds dependency graph using depth-first search, populates dependents dictionary, then returns the graph as JSON output. [16]
+- **`🔌 class CodeEntityVisitor`**: Analyzes Python code structure, tracks imports, globals, functions, and classes while maintaining traversal context. [2]
+- **`🔌 class GraphAnalyzer`**: Analyzes project dependencies and source code for TODO comments, building a graphical representation of relationships. [3]
+- **`🔌 🔌 CodeEntityVisitor.leave_ClassDef`**: Manages ClassDef nodes by popping current context and header stack, maintaining state during traversal. [4]
+- **`🔌 🔌 CodeEntityVisitor.leave_FunctionDef`**: Manages current context stack by popping elements when leaving function definitions. [5]
+- **`🔌 🔌 CodeEntityVisitor.leave_SimpleStatementLine`**: Updates current statement context after processing SimpleStatementLine node. [6]
+- **`🔌 🔌 CodeEntityVisitor.visit_AnnAssign`**: Manages global variable declarations by extracting names, source code, signatures, and privacy flags, adding them to entities['globals'] while filtering private variables starting with '_'. [7]
+- **`🔌 🔌 CodeEntityVisitor.visit_Assign`**: Identifies global variables from assignment statements, records their names, source code snippets, signatures indicating they are not private, and categorizes them as globals within the current module context. [8]
+- **`🔌 🔌 CodeEntityVisitor.visit_Call`**: Analyzes function calls, categorizing imports as local or external based on module scope. [9]
+- **`🔌 🔌 CodeEntityVisitor.visit_ClassDef`**: Analyzes class definition by extracting source code, docstring, base classes, and initializing class metadata in entities dictionary. [10]
+- **`🔌 🔌 CodeEntityVisitor.visit_FunctionDef`**: Analyzes function definitions by extracting signatures, docstrings, source code, and metadata, categorizing them as methods or standalone functions within class contexts. [11]
+- **`🔌 🔌 CodeEntityVisitor.visit_Import`**: Analyzes imported modules, categorizes them as external or relative imports, and maps import statements to their respective targets for cross-module interaction analysis. [12]
+- **`🔌 🔌 CodeEntityVisitor.visit_ImportFrom`**: Analyzes imported modules, resolving relative imports within the project context, and maps them to their corresponding file paths. [13]
+- **`🔌 🔌 CodeEntityVisitor.visit_Name`**: Registers name usage context during traversal, recording interactions between nodes and current scope while traversing Python code AST. [14]
+- **`🔌 🔌 CodeEntityVisitor.visit_SimpleStatementLine`**: Registers the current statement node for further analysis. [15]
+- **`🔌 🔌 GraphAnalyzer.analyze`**: Builds a dependency graph by traversing project files recursively, populates dependent relationships for analysis. [16]
 
 ### 👥 Used By (Downstream)
 - **`agent_util.py`**
 
 <details><summary><i>View Verification Claims</i></summary>
 
-> 🆔 `4e3c1e` [1]: Analyzes code structure, builds dependency graph using depth-first search _(Source: Synthesis (based on [10], [11], [3], [9], [15], [16], [14], [2], [7], [5], [12], [6], [4], [8], [13]))_
-> 🆔 `57bf20` [2]: Analyzes code structure, collects module data, records interactions, and captures entity details _(Source: class CodeEntityVisitor)_
-> 🆔 `1988e3` [3]: Collects, parses, and organizes project files and dependencies using depth-first search algorithm _(Source: class GraphAnalyzer)_
-> 🆔 `bea5bd` [4]: Removes class definition from current context and header stack _(Source: 🔌 CodeEntityVisitor.leave_ClassDef)_
-> 🆔 `91d05f` [5]: Maintains current context stack by popping when leaving function definition _(Source: 🔌 CodeEntityVisitor.leave_FunctionDef)_
-> 🆔 `ab60fa` [6]: Updates current statement attribute to None _(Source: 🔌 CodeEntityVisitor.leave_SimpleStatementLine)_
-> 🆔 `6a1f01` [7]: Collects annotated variable names and their source code for globals _(Source: 🔌 CodeEntityVisitor.visit_AnnAssign)_
-> 🆔 `d703e4` [8]: Captures global assignments from module node _(Source: 🔌 CodeEntityVisitor.visit_Assign)_
-> 🆔 `2a13c7` [9]: Records function call interactions in cross-module map _(Source: 🔌 CodeEntityVisitor.visit_Call)_
-> 🆔 `0f7084` [10]: Captures class name, parses source code, retrieves docstring, extracts bases, constructs header, stores entity data _(Source: 🔌 CodeEntityVisitor.visit_ClassDef)_
-> 🆔 `0fb7a3` [11]: Captures function signature details, headers, docstrings, source code snippets, implementation status, and categorizes functions as methods or standalone based on context path. _(Source: 🔌 CodeEntityVisitor.visit_FunctionDef)_
-> 🆔 `a08b0b` [12]: Collects external module names from import node _(Source: 🔌 CodeEntityVisitor.visit_Import)_
-> 🆔 `fb5133` [13]: Collects external module names and relative import paths for ImportFrom nodes, updates state accordingly _(Source: 🔌 CodeEntityVisitor.visit_ImportFrom)_
-> 🆔 `51491a` [14]: Records interactions for name nodes _(Source: 🔌 CodeEntityVisitor.visit_Name)_
-> 🆔 `5013f1` [15]: Updates current statement reference within visitor _(Source: 🔌 CodeEntityVisitor.visit_SimpleStatementLine)_
-> 🆔 `50db0d` [16]: Builds dependency graph using depth-first search, populates dependents dictionary, then returns the graph as JSON output. _(Source: 🔌 GraphAnalyzer.analyze)_
+> 🆔 `cd0633` [1]: Defines the systemic role of `graph_analyzer.py` as an entity that analyzes project dependencies and source code for TODO comments, building a graphical representation of relationships. _(Source: Synthesis (based on [11], [3], [2], [7], [5], [13], [6], [14], [8], [16], [12], [4], [15], [10], [9]))_
+> 🆔 `28a4c3` [2]: Analyzes Python code structure, tracks imports, globals, functions, and classes while maintaining traversal context. _(Source: class CodeEntityVisitor)_
+> 🆔 `261726` [3]: Analyzes project dependencies and source code for TODO comments, building a graphical representation of relationships. _(Source: class GraphAnalyzer)_
+> 🆔 `ee8ce6` [4]: Manages ClassDef nodes by popping current context and header stack, maintaining state during traversal. _(Source: 🔌 CodeEntityVisitor.leave_ClassDef)_
+> 🆔 `6688b6` [5]: Manages current context stack by popping elements when leaving function definitions. _(Source: 🔌 CodeEntityVisitor.leave_FunctionDef)_
+> 🆔 `7b580e` [6]: Updates current statement context after processing SimpleStatementLine node. _(Source: 🔌 CodeEntityVisitor.leave_SimpleStatementLine)_
+> 🆔 `464758` [7]: Manages global variable declarations by extracting names, source code, signatures, and privacy flags, adding them to entities['globals'] while filtering private variables starting with '_'. _(Source: 🔌 CodeEntityVisitor.visit_AnnAssign)_
+> 🆔 `a00228` [8]: Identifies global variables from assignment statements, records their names, source code snippets, signatures indicating they are not private, and categorizes them as globals within the current module context. _(Source: 🔌 CodeEntityVisitor.visit_Assign)_
+> 🆔 `fa64a3` [9]: Analyzes function calls, categorizing imports as local or external based on module scope. _(Source: 🔌 CodeEntityVisitor.visit_Call)_
+> 🆔 `f9e620` [10]: Analyzes class definition by extracting source code, docstring, base classes, and initializing class metadata in entities dictionary. _(Source: 🔌 CodeEntityVisitor.visit_ClassDef)_
+> 🆔 `1c9669` [11]: Analyzes function definitions by extracting signatures, docstrings, source code, and metadata, categorizing them as methods or standalone functions within class contexts. _(Source: 🔌 CodeEntityVisitor.visit_FunctionDef)_
+> 🆔 `c29885` [12]: Analyzes imported modules, categorizes them as external or relative imports, and maps import statements to their respective targets for cross-module interaction analysis. _(Source: 🔌 CodeEntityVisitor.visit_Import)_
+> 🆔 `6727f4` [13]: Analyzes imported modules, resolving relative imports within the project context, and maps them to their corresponding file paths. _(Source: 🔌 CodeEntityVisitor.visit_ImportFrom)_
+> 🆔 `8cc659` [14]: Registers name usage context during traversal, recording interactions between nodes and current scope while traversing Python code AST. _(Source: 🔌 CodeEntityVisitor.visit_Name)_
+> 🆔 `f50652` [15]: Registers the current statement node for further analysis. _(Source: 🔌 CodeEntityVisitor.visit_SimpleStatementLine)_
+> 🆔 `a2f078` [16]: Builds a dependency graph by traversing project files recursively, populates dependent relationships for analysis. _(Source: 🔌 GraphAnalyzer.analyze)_
 </details>
 
 ---
 ## 📦 Module: `memory_core.py`
-**Role:** The module `memory_core.py` Encapsulates memory records as documents in Chroma database and defines query operations
+**Role:** The module `memory_core.py` Defines interface signature (Abstract)
 
 **Impact Analysis:** Changes to this module will affect: agent_core.py [1]
 
@@ -405,12 +405,12 @@
 - 🔴 **Incomplete**: Method not implemented `(Ref: def query_memory(self, query, current_turn=0, n_results=5):)`
 
 ### 🧩 Interface & Logic
-- **`🔌 class ChromaMemory`**: Manages memory records, retrieves and updates metadata [2]
-- **`🔌 class MemoryInterface`**: Encapsulates memory data structure and defines query interface [3]
-- **`🔌 🔌 ChromaMemory.add_memory`**: Generates unique ID, creates combined metadata, updates it with optional additional data, then adds memory record to Chroma collection [4]
-- **`🔌 🔌 ChromaMemory.cleanup_memories`**: Retrieves all memories, evaluates helpfulness and last used turn, deletes low-score or stale memories [5]
-- **`🔌 🔌 ChromaMemory.query_memory`**: Updates memory metadata with last used turn [6]
-- **`🔌 🔌 ChromaMemory.update_helpfulness`**: Retrieves metadata for specified memory, updates its helpfulness value, and saves modified metadata to the database [7]
+- **`🔌 class ChromaMemory`**: Manages memory storage and retrieval within Chroma database, facilitating persistent text embedding associations. [2]
+- **`🔌 class MemoryInterface`**: Provides abstract memory query capabilities for external systems. [3]
+- **`🔌 🔌 ChromaMemory.add_memory`**: Creates a unique memory ID, combines turn and helpfulness metadata, updates it with provided metadata if present, then stores the text, embedding, ID, and combined metadata in ChromaDB collection. [4]
+- **`🔌 🔌 ChromaMemory.cleanup_memories`**: Deletes old memory entries from ChromaDB collection based on helpfulness score or recency, purging those below threshold to maintain relevance. [5]
+- **`🔌 🔌 ChromaMemory.query_memory`**: Queries the Chroma database for relevant memory entries based on input query, retrieves associated metadata including document content and timestamps each used entry by updating its last_used_turn attribute. [6]
+- **`🔌 🔌 ChromaMemory.update_helpfulness`**: Updates the helpfulness metadata for a given memory by retrieving current metadata, modifying its helpfulness field, and persisting the changes to the ChromaDB collection. [7]
 - **`🔌 🔌 MemoryInterface.query_memory`**: Defines interface signature (Abstract). [8]
 
 ### 👥 Used By (Downstream)
@@ -418,89 +418,89 @@
 
 <details><summary><i>View Verification Claims</i></summary>
 
-> 🆔 `e8f820` [1]: Encapsulates memory records as documents in Chroma database and defines query operations _(Source: Synthesis (based on [3], [5], [7], [2], [6], [4], [8]))_
-> 🆔 `6298ae` [2]: Manages memory records, retrieves and updates metadata _(Source: class ChromaMemory)_
-> 🆔 `29648e` [3]: Encapsulates memory data structure and defines query interface _(Source: class MemoryInterface)_
-> 🆔 `96885f` [4]: Generates unique ID, creates combined metadata, updates it with optional additional data, then adds memory record to Chroma collection _(Source: 🔌 ChromaMemory.add_memory)_
-> 🆔 `31b226` [5]: Retrieves all memories, evaluates helpfulness and last used turn, deletes low-score or stale memories _(Source: 🔌 ChromaMemory.cleanup_memories)_
-> 🆔 `79533b` [6]: Updates memory metadata with last used turn _(Source: 🔌 ChromaMemory.query_memory)_
-> 🆔 `348380` [7]: Retrieves metadata for specified memory, updates its helpfulness value, and saves modified metadata to the database _(Source: 🔌 ChromaMemory.update_helpfulness)_
+> 🆔 `96aed9` [1]: Defines interface signature (Abstract) _(Source: Synthesis (based on [3], [4], [2], [7], [8], [6], [5]))_
+> 🆔 `4dd1b8` [2]: Manages memory storage and retrieval within Chroma database, facilitating persistent text embedding associations. _(Source: class ChromaMemory)_
+> 🆔 `2ff6df` [3]: Provides abstract memory query capabilities for external systems. _(Source: class MemoryInterface)_
+> 🆔 `33b9a9` [4]: Creates a unique memory ID, combines turn and helpfulness metadata, updates it with provided metadata if present, then stores the text, embedding, ID, and combined metadata in ChromaDB collection. _(Source: 🔌 ChromaMemory.add_memory)_
+> 🆔 `e27125` [5]: Deletes old memory entries from ChromaDB collection based on helpfulness score or recency, purging those below threshold to maintain relevance. _(Source: 🔌 ChromaMemory.cleanup_memories)_
+> 🆔 `baf251` [6]: Queries the Chroma database for relevant memory entries based on input query, retrieves associated metadata including document content and timestamps each used entry by updating its last_used_turn attribute. _(Source: 🔌 ChromaMemory.query_memory)_
+> 🆔 `899b8a` [7]: Updates the helpfulness metadata for a given memory by retrieving current metadata, modifying its helpfulness field, and persisting the changes to the ChromaDB collection. _(Source: 🔌 ChromaMemory.update_helpfulness)_
 > 🆔 `a118a7` [8]: Defines interface signature (Abstract). _(Source: 🔌 MemoryInterface.query_memory)_
 </details>
 
 ---
 ## 📦 Module: `module_classifier.py`
-**Role:** The module `module_classifier.py` Classifies modules based on their attributes, dependencies, and functionality using static analysis techniques
+**Role:** The module `module_classifier.py` Defines ModuleArchetype records and encapsulates module classification logic to categorize architectural types based on provided attributes.
 
 **Impact Analysis:** Changes to this module will affect: module_contextualizer.py [1]
 
 ### 🧩 Interface & Logic
 - **`🔌 class ModuleArchetype`**: Data container for ModuleArchetype records. [2]
-- **`🔌 class ModuleClassifier`**: Classifies modules based on their characteristics and relationships. [3]
-- **`🔌 🔌 ModuleClassifier.classify`**: Determines module archetype by name, source code, entities, dependencies, functions, classes, and global assignments [4]
+- **`🔌 class ModuleClassifier`**: Analyzes module characteristics to categorize its architectural type based on provided attributes. [3]
+- **`🔌 🔌 ModuleClassifier.classify`**: Determines module archetype based on name, entities, dependencies, source code, and classes/methods. [4]
 
 ### 👥 Used By (Downstream)
 - **`module_contextualizer.py`**
 
 <details><summary><i>View Verification Claims</i></summary>
 
-> 🆔 `1af426` [1]: Classifies modules based on their attributes, dependencies, and functionality using static analysis techniques _(Source: Synthesis (based on [2], [3], [4]))_
+> 🆔 `3f806a` [1]: Defines ModuleArchetype records and encapsulates module classification logic to categorize architectural types based on provided attributes. _(Source: Synthesis (based on [4], [3], [2]))_
 > 🆔 `a94772` [2]: Data container for ModuleArchetype records. _(Source: class ModuleArchetype)_
-> 🆔 `b7f885` [3]: Classifies modules based on their characteristics and relationships. _(Source: class ModuleClassifier)_
-> 🆔 `dfb806` [4]: Determines module archetype by name, source code, entities, dependencies, functions, classes, and global assignments _(Source: 🔌 ModuleClassifier.classify)_
+> 🆔 `733c7f` [3]: Analyzes module characteristics to categorize its architectural type based on provided attributes. _(Source: class ModuleClassifier)_
+> 🆔 `0c019d` [4]: Determines module archetype based on name, entities, dependencies, source code, and classes/methods. _(Source: 🔌 ModuleClassifier.classify)_
 </details>
 
 ---
 ## 📦 Module: `module_contextualizer.py`
-**Role:** The module `module_contextualizer.py` Analyzes context, identifies dependencies, synthesizes role based on usage patterns
+**Role:** The module `module_contextualizer.py` Defines a data structure for analyzing module context, contextualizing components, and synthesizing systemic roles based on dependencies and usage patterns.
 
 **Impact Analysis:** Changes to this module will affect: agent_util.py [1]
 
 ### 🧩 Interface & Logic
-- **`🔌 class ModuleContextualizer`**: Analyzes module context, identifies dependencies, synthesizes role based on usage patterns [2]
-- **`🔌 🔌 ModuleContextualizer.contextualize_module`**: Analyzes module context by checking for errors, performing component analysis, dependency analysis, systemic synthesis, and alert handling. [3]
+- **`🔌 class ModuleContextualizer`**: Analyzes module context, contextualizes components, and synthesizes systemic roles based on dependencies and usage patterns. [2]
+- **`🔌 🔌 ModuleContextualizer.contextualize_module`**: Analyzes components, dependencies, and usage to build contextual module information, adding alerts if errors are detected. [3]
 
 ### 🔗 Uses (Upstream)
-- **`component_analyst.py`**: Uses `component_analyst.py`: Instantiates ComponentAnalyst from component_analyst module; Analyzes components by examining global variables, functions, and classes in specified module context using ComponentAnalyst class from component_analyst.py. [4]
-- **`module_classifier.py`**: Uses `module_classifier.py`: Instantiates ModuleClassifier with module_name and data to classify modules based on their attributes, dependencies, and functionality using static analysis techniques from module_classifier.py; Creates an instance of ModuleClassifier to analyze and classify modules based on their attributes, dependencies, and functionality.. [5]
-- **`semantic_gatekeeper.py`**: Uses `semantic_gatekeeper.py`: Instantiates SemanticGatekeeper for prompt assembly and LLM analysis execution.. [6]
-- **`task_executor.py`**: Uses `task_executor.py`: Creates an instance of TaskExecutor by passing self.gatekeeper as the parameter to its constructor within module_contextualizer.py. [7]
-- **`summary_models.py`**: Uses `summary_models.py`: Instantiates ModuleContext objects from summary_models.py by calling the constructor method __init__ with arguments such as file_path and graph_data, then employs the contextualize_module function to generate module context details.; Analyzes module context, generates unique identifiers using concatenated text and SHA1 hashing, sets module roles with associated claims from source modules, manages alerts related to analysis errors or incomplete implementations, and defines dependencies between modules through placeholders.. [8]
-- **`dependency_analyst.py`**: Uses `dependency_analyst.py`: Instantiates an instance of DependencyAnalyst using gatekeeper and task_executor attributes. [9]
+- **`dependency_analyst.py`**: Uses `dependency_analyst.py`: Instantiates DependencyAnalyst using gatekeeper and task_executor parameters.. [4]
+- **`task_executor.py`**: Uses `task_executor.py`: Instantiates TaskExecutor using gatekeeper feedback for contextual analysis and task execution.. [5]
+- **`semantic_gatekeeper.py`**: Uses `semantic_gatekeeper.py`: Instantiates SemanticGatekeeper to enforce strict technical analysis guidelines and content validation within code evaluation context, handling errors and style critiques across multiple attempts while monitoring adherence to defined constraints.. [6]
+- **`module_classifier.py`**: Uses `module_classifier.py`: Instantiates ModuleClassifier in _pass_systemic_synthesis to categorize modules based on module_name and data attributes, invoking module_classifier.py logic to determine archetype.; Determines module archetype based on name, entities, dependencies, source code, and classes/methods to categorize its architectural type using ModuleClassifier's Logic/Capabilities.. [7]
+- **`summary_models.py`**: Uses `summary_models.py`: Initializes and configures ModuleContextualizer's internal state by setting up a ModuleContext instance using parameters from summary_models.py, enabling module context mapping functionality.; Instantiates and configures ModuleContext with file_path, graph_data, and dep_contexts attributes.. [8]
+- **`component_analyst.py`**: Uses `component_analyst.py`: Instantiates the `ComponentAnalyst` class using `self.comp_analyst = ComponentAnalyst(self.gatekeeper)` in `module_contextualizer.py`.; Instantiates the `ComponentAnalyst` class using `self.gatekeeper` as an argument to enable module contextualization functionality.. [9]
 
 ### 👥 Used By (Downstream)
 - **`agent_util.py`**
 
 <details><summary><i>View Verification Claims</i></summary>
 
-> 🆔 `ad8e43` [1]: Analyzes context, identifies dependencies, synthesizes role based on usage patterns _(Source: Synthesis (based on [2], [3]))_
-> 🆔 `cc099f` [2]: Analyzes module context, identifies dependencies, synthesizes role based on usage patterns _(Source: class ModuleContextualizer)_
-> 🆔 `df4695` [3]: Analyzes module context by checking for errors, performing component analysis, dependency analysis, systemic synthesis, and alert handling. _(Source: 🔌 ModuleContextualizer.contextualize_module)_
-> 🆔 `7266d3` [4]: Uses `component_analyst.py`: Instantiates ComponentAnalyst from component_analyst module; Analyzes components by examining global variables, functions, and classes in specified module context using ComponentAnalyst class from component_analyst.py. _(Source: Import component_analyst.py)_
-> 🆔 `529844` [5]: Uses `module_classifier.py`: Instantiates ModuleClassifier with module_name and data to classify modules based on their attributes, dependencies, and functionality using static analysis techniques from module_classifier.py; Creates an instance of ModuleClassifier to analyze and classify modules based on their attributes, dependencies, and functionality.. _(Source: Import module_classifier.py)_
-> 🆔 `9f0a23` [6]: Uses `semantic_gatekeeper.py`: Instantiates SemanticGatekeeper for prompt assembly and LLM analysis execution.. _(Source: Import semantic_gatekeeper.py)_
-> 🆔 `d0abac` [7]: Uses `task_executor.py`: Creates an instance of TaskExecutor by passing self.gatekeeper as the parameter to its constructor within module_contextualizer.py. _(Source: Import task_executor.py)_
-> 🆔 `4c9a53` [8]: Uses `summary_models.py`: Instantiates ModuleContext objects from summary_models.py by calling the constructor method __init__ with arguments such as file_path and graph_data, then employs the contextualize_module function to generate module context details.; Analyzes module context, generates unique identifiers using concatenated text and SHA1 hashing, sets module roles with associated claims from source modules, manages alerts related to analysis errors or incomplete implementations, and defines dependencies between modules through placeholders.. _(Source: Import summary_models.py)_
-> 🆔 `1630e3` [9]: Uses `dependency_analyst.py`: Instantiates an instance of DependencyAnalyst using gatekeeper and task_executor attributes. _(Source: Import dependency_analyst.py)_
+> 🆔 `3eb6d9` [1]: Defines a data structure for analyzing module context, contextualizing components, and synthesizing systemic roles based on dependencies and usage patterns. _(Source: Synthesis (based on [2], [3]))_
+> 🆔 `4b5cd5` [2]: Analyzes module context, contextualizes components, and synthesizes systemic roles based on dependencies and usage patterns. _(Source: class ModuleContextualizer)_
+> 🆔 `f45b01` [3]: Analyzes components, dependencies, and usage to build contextual module information, adding alerts if errors are detected. _(Source: 🔌 ModuleContextualizer.contextualize_module)_
+> 🆔 `81915d` [4]: Uses `dependency_analyst.py`: Instantiates DependencyAnalyst using gatekeeper and task_executor parameters.. _(Source: Import dependency_analyst.py)_
+> 🆔 `360a70` [5]: Uses `task_executor.py`: Instantiates TaskExecutor using gatekeeper feedback for contextual analysis and task execution.. _(Source: Import task_executor.py)_
+> 🆔 `f41d0a` [6]: Uses `semantic_gatekeeper.py`: Instantiates SemanticGatekeeper to enforce strict technical analysis guidelines and content validation within code evaluation context, handling errors and style critiques across multiple attempts while monitoring adherence to defined constraints.. _(Source: Import semantic_gatekeeper.py)_
+> 🆔 `3374fc` [7]: Uses `module_classifier.py`: Instantiates ModuleClassifier in _pass_systemic_synthesis to categorize modules based on module_name and data attributes, invoking module_classifier.py logic to determine archetype.; Determines module archetype based on name, entities, dependencies, source code, and classes/methods to categorize its architectural type using ModuleClassifier's Logic/Capabilities.. _(Source: Import module_classifier.py)_
+> 🆔 `d41e09` [8]: Uses `summary_models.py`: Initializes and configures ModuleContextualizer's internal state by setting up a ModuleContext instance using parameters from summary_models.py, enabling module context mapping functionality.; Instantiates and configures ModuleContext with file_path, graph_data, and dep_contexts attributes.. _(Source: Import summary_models.py)_
+> 🆔 `6c55fc` [9]: Uses `component_analyst.py`: Instantiates the `ComponentAnalyst` class using `self.comp_analyst = ComponentAnalyst(self.gatekeeper)` in `module_contextualizer.py`.; Instantiates the `ComponentAnalyst` class using `self.gatekeeper` as an argument to enable module contextualization functionality.. _(Source: Import component_analyst.py)_
 </details>
 
 ---
 ## 📦 Module: `summary_models.py`
-**Role:** The module `summary_models.py` Represents structured summary of system components, stores relationships between modules, encapsulates module configurations, and defines the purpose and capabilities of each component
+**Role:** The module `summary_models.py` Defines and encapsulates the data structures for the Module Context Map, providing classes to represent claims, grounded text records, alerts, and module context metadata to capture relationships between modules and their dependencies.
 
 **Impact Analysis:** Changes to this module will affect: agent_core.py, agent_util.py, component_analyst.py, dependency_analyst.py, map_synthesizer.py, module_contextualizer.py, report_renderer.py [1]
 
 ### 🧩 Interface & Logic
 - **`🔌 class Alert`**: Data container for Alert records. [2]
-- **`🔌 class Claim`**: Creates unique identifiers by combining text, reference, source module and computing SHA1 hash [3]
+- **`🔌 class Claim`**: Handles claims by generating unique identifiers for reference, text, and source module combinations. [3]
 - **`🔌 class GroundedText`**: Data container for GroundedText records. [4]
-- **`🔌 class ModuleContext`**: Manages module state, dependencies, public API, alerts, and claim placeholders through various methods [5]
-- **`🔌 🔌 Claim.id`**: Creates unique identifier by concatenating text, reference, source module and computing SHA1 hash [6]
-- **`🔌 🔌 ModuleContext.add_alert`**: Collects alerts and appends them to internal list [7]
-- **`🔌 🔌 ModuleContext.add_dependency_context`**: Adds dependency context to module by combining explanation and claim placeholders [8]
-- **`🔌 🔌 ModuleContext.add_dependent_context`**: Manages dependent module contexts by storing provided explanation and placeholders in key_dependents dictionary [9]
-- **`🔌 🔌 ModuleContext.add_public_api_entry`**: Adds public API entry by merging description and placeholders, storing in dictionary with supporting claim IDs [10]
-- **`🔌 🔌 ModuleContext.set_module_role`**: Combines module text with claim placeholders, updates module role state [11]
+- **`🔌 class ModuleContext`**: Owning module metadata, managing context data, and facilitating relationships between modules and dependencies. [5]
+- **`🔌 🔌 Claim.id`**: Generates a SHA-1 hash based on text, reference, and source module, returning the hashed value. [6]
+- **`🔌 🔌 ModuleContext.add_alert`**: Adds an alert to the list of alerts, mutating the state by appending to self.alerts. [7]
+- **`🔌 🔌 ModuleContext.add_dependency_context`**: Associates module paths with dependency explanations and supporting claim identifiers, updating internal state to track dependencies. [8]
+- **`🔌 🔌 ModuleContext.add_dependent_context`**: Registers dependent contexts by adding grounded text explanations linked to supporting claims, updating key_dependents dictionary. [9]
+- **`🔌 🔌 ModuleContext.add_public_api_entry`**: Adds a public API entry by creating a grounded text description using supporting claims and storing it in the module's context. [10]
+- **`🔌 🔌 ModuleContext.set_module_role`**: Adds supporting claims to the module role text by adding placeholders, generates full text, and assigns it as grounded text with associated claim IDs. [11]
 
 ### 👥 Used By (Downstream)
 - **`agent_core.py`**
@@ -513,17 +513,17 @@
 
 <details><summary><i>View Verification Claims</i></summary>
 
-> 🆔 `b0e0a0` [1]: Represents structured summary of system components, stores relationships between modules, encapsulates module configurations, and defines the purpose and capabilities of each component _(Source: Synthesis (based on [8], [3], [7], [10], [11], [4], [6], [2], [9], [5]))_
+> 🆔 `de1a41` [1]: Defines and encapsulates the data structures for the Module Context Map, providing classes to represent claims, grounded text records, alerts, and module context metadata to capture relationships between modules and their dependencies. _(Source: Synthesis (based on [8], [6], [9], [4], [5], [2], [10], [11], [7], [3]))_
 > 🆔 `cdaf82` [2]: Data container for Alert records. _(Source: class Alert)_
-> 🆔 `43bd09` [3]: Creates unique identifiers by combining text, reference, source module and computing SHA1 hash _(Source: class Claim)_
+> 🆔 `f86ab8` [3]: Handles claims by generating unique identifiers for reference, text, and source module combinations. _(Source: class Claim)_
 > 🆔 `b77290` [4]: Data container for GroundedText records. _(Source: class GroundedText)_
-> 🆔 `fe69d4` [5]: Manages module state, dependencies, public API, alerts, and claim placeholders through various methods _(Source: class ModuleContext)_
-> 🆔 `cce842` [6]: Creates unique identifier by concatenating text, reference, source module and computing SHA1 hash _(Source: 🔌 Claim.id)_
-> 🆔 `4c3dca` [7]: Collects alerts and appends them to internal list _(Source: 🔌 ModuleContext.add_alert)_
-> 🆔 `3b0a7c` [8]: Adds dependency context to module by combining explanation and claim placeholders _(Source: 🔌 ModuleContext.add_dependency_context)_
-> 🆔 `dbd7bd` [9]: Manages dependent module contexts by storing provided explanation and placeholders in key_dependents dictionary _(Source: 🔌 ModuleContext.add_dependent_context)_
-> 🆔 `71ddaf` [10]: Adds public API entry by merging description and placeholders, storing in dictionary with supporting claim IDs _(Source: 🔌 ModuleContext.add_public_api_entry)_
-> 🆔 `a07c66` [11]: Combines module text with claim placeholders, updates module role state _(Source: 🔌 ModuleContext.set_module_role)_
+> 🆔 `b7adab` [5]: Owning module metadata, managing context data, and facilitating relationships between modules and dependencies. _(Source: class ModuleContext)_
+> 🆔 `9271ea` [6]: Generates a SHA-1 hash based on text, reference, and source module, returning the hashed value. _(Source: 🔌 Claim.id)_
+> 🆔 `e5dbdb` [7]: Adds an alert to the list of alerts, mutating the state by appending to self.alerts. _(Source: 🔌 ModuleContext.add_alert)_
+> 🆔 `6fead9` [8]: Associates module paths with dependency explanations and supporting claim identifiers, updating internal state to track dependencies. _(Source: 🔌 ModuleContext.add_dependency_context)_
+> 🆔 `b732dc` [9]: Registers dependent contexts by adding grounded text explanations linked to supporting claims, updating key_dependents dictionary. _(Source: 🔌 ModuleContext.add_dependent_context)_
+> 🆔 `cef779` [10]: Adds a public API entry by creating a grounded text description using supporting claims and storing it in the module's context. _(Source: 🔌 ModuleContext.add_public_api_entry)_
+> 🆔 `d0806b` [11]: Adds supporting claims to the module role text by adding placeholders, generates full text, and assigns it as grounded text with associated claim IDs. _(Source: 🔌 ModuleContext.set_module_role)_
 </details>
 
 ---
@@ -535,8 +535,8 @@
 **Impact Analysis:** Changes to this module will affect: agent_core.py, map_synthesizer.py, semantic_gatekeeper.py [1]
 
 ### 🧩 Interface & Logic
-- **`🔌 CONTEXT_LIMIT`**: Assigns maximum context length to 4096 characters [2]
-- **`🔌 DEFAULT_MODEL`**: Assigns model identifier string to global variable for subsequent use in program [3]
+- **`🔌 CONTEXT_LIMIT`**: Assigns a maximum context length limit for text processing operations. [2]
+- **`🔌 DEFAULT_MODEL`**: Assigns tiny-h model identifier to specified variable, managing default language modeling configuration. [3]
 
 ### 👥 Used By (Downstream)
 - **`agent_core.py`**
@@ -546,8 +546,8 @@
 <details><summary><i>View Verification Claims</i></summary>
 
 > 🆔 `449512` [1]: Defines configuration constants. _(Source: Archetype)_
-> 🆔 `eb1d4c` [2]: Assigns maximum context length to 4096 characters _(Source: CONTEXT_LIMIT)_
-> 🆔 `8d9460` [3]: Assigns model identifier string to global variable for subsequent use in program _(Source: DEFAULT_MODEL)_
+> 🆔 `411fc0` [2]: Assigns a maximum context length limit for text processing operations. _(Source: CONTEXT_LIMIT)_
+> 🆔 `a99509` [3]: Assigns tiny-h model identifier to specified variable, managing default language modeling configuration. _(Source: DEFAULT_MODEL)_
 </details>
 
 ---

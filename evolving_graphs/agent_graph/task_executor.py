@@ -46,6 +46,10 @@ class TaskExecutor:
         
         Task: Break this goal into 2-3 distinct, factual sub-questions.
         
+        Constraints:
+        1. Do NOT use marketing buzzwords (e.g. "facilitate", "streamline", "robust", "seamless").
+        2. Questions must be technical and specific to the code.
+        
         Output Format:
         Return valid JSON with a single key "plan". The value must be a list of strings.
         Example: {{ "plan": ["How is the class instantiated?", "What arguments are passed?"] }}
@@ -72,6 +76,7 @@ class TaskExecutor:
         valid_evidence_found = False
 
         for i, question in enumerate(sub_questions):
+            # UPDATED PROMPT: Request Python Dict format (Single Quotes) to avoid JSON escaping issues
             execution_prompt = f"""
             Context:
             \"\"\"
@@ -83,19 +88,19 @@ class TaskExecutor:
             Task: Answer the question AND classify the evidence type.
             
             Constraints:
-            1. Use double quotes for JSON strings.
-            2. ESCAPE any double quotes inside the answer text (e.g. \"text\").
-            3. Do NOT use single quotes as JSON delimiters.
+            1. Return a valid JSON object with key "result".
+            2. The "result" object must contain "answer_text" and "status".
+            3. CRITICAL: Use SINGLE QUOTES for the 'answer_text' value to avoid escaping issues (e.g. 'Code calls "foo"').
             
             Classifications:
             - ACTIVE: Logic execution, calls, instantiation.
             - PASSIVE: Imports, type hints, constants.
             - NONE: No evidence found.
             
-            Return JSON with key "result": 
+            Return JSON: 
             {{ 
                 "result": {{
-                    "answer_text": "Code calls self.run()",
+                    "answer_text": 'Code calls "self.run()"',
                     "status": "ACTIVE"
                 }} 
             }}
@@ -176,10 +181,11 @@ class TaskExecutor:
         
         # CHANGED: verification_source should be context_data (Source Code), not findings_block.
         # Validating against findings is circular. Validating against code is grounding.
+        # Removed "imports" from forbidden_terms to allow valid noun usage
         result_raw = self.gatekeeper.execute_with_feedback(
             final_prompt, 
             "result", 
-            forbidden_terms=["uses", "imports", "utilizes", "leverages"], 
+            forbidden_terms=["uses", "utilizes", "leverages"], 
             verification_source=context_data, 
             log_context=f"{log_label}:Synthesis"
         )
