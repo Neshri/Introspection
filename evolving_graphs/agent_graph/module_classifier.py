@@ -71,5 +71,3 @@ class ModuleClassifier:
             return ModuleArchetype.UTILITY # Fallback
 
         return ModuleArchetype.SERVICE
-
-        return ModuleArchetype.SERVICE
