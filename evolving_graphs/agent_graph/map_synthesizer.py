@@ -4,7 +4,6 @@ import logging
 from .summary_models import ModuleContext
 from .semantic_gatekeeper import SemanticGatekeeper
 from .agent_config import DEFAULT_MODEL
-from .llm_util import chat_llm
 
 class MapSynthesizer:
     """
