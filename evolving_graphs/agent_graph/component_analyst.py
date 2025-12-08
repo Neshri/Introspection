@@ -2,15 +2,60 @@ import os
 import ast
 from typing import List, Dict, Any
 from .semantic_gatekeeper import SemanticGatekeeper
+from .task_executor import TaskExecutor
 from .summary_models import ModuleContext, Claim
 
+class SkeletonTransformer(ast.NodeTransformer):
+    """
+    Strips function bodies and class docstrings to create a token-efficient skeleton.
+    Updated to use ast.Constant for Python 3.8+ compatibility.
+    """
+    # Removed visit_FunctionDef and visit_AsyncFunctionDef to preserve function bodies.
+    # The LLM needs to see the implementation to avoid hallucinations.
+
+
+    def _remove_docstring(self, node):
+        if node.body and isinstance(node.body[0], ast.Expr) and isinstance(node.body[0].value, ast.Constant):
+            if isinstance(node.body[0].value.value, str):
+                node.body.pop(0)
+        return node
+
+    def visit_FunctionDef(self, node):
+        self._remove_docstring(node)
+        return self.generic_visit(node)
+
+    def visit_AsyncFunctionDef(self, node):
+        self._remove_docstring(node)
+        return self.generic_visit(node)
+
+    def visit_ClassDef(self, node):
+        self._remove_docstring(node)
+        
+        # If body is empty after removing docstring, add 'pass'
+        if not node.body:
+            node.body = [ast.Pass()]
+            
+        return self.generic_visit(node)
+
 class ComponentAnalyst:
-    def __init__(self, gatekeeper: SemanticGatekeeper):
+    def __init__(self, gatekeeper: SemanticGatekeeper, task_executor: TaskExecutor):
         self.gatekeeper = gatekeeper
+        self.task_executor = task_executor
+
+    def generate_module_skeleton(self, source_code: str) -> str:
+        try:
+            tree = ast.parse(source_code)
+            transformer = SkeletonTransformer()
+            new_tree = transformer.visit(tree)
+            return ast.unparse(new_tree)
+        except Exception:
+            # Fallback to original source if parsing fails (Safety Net)
+            return source_code
 
     def analyze_components(self, context: ModuleContext, entities: Dict[str, Any], file_path: str, usage_map: Dict[str, List[str]] = {}, interactions: List[Dict] = [], dep_contexts: Dict[str, ModuleContext] = {}) -> List[str]:
         """
         Analyzes components using ONLY code logic (No Docstrings).
+        Uses TaskExecutor for complex logic to ensure grounding.
         """
         module_name = os.path.basename(file_path)
         working_memory = []
@@ -30,12 +75,23 @@ class ComponentAnalyst:
 
         base_scope_context = "\n".join(scope_items)
 
-        # --- Step 2: Analyze Globals ---
+        # --- Step 2: Analyze Globals (OPTIMIZED) ---
         for glob in entities.get('globals', []):
             name = glob['name']
             source = glob.get('source_code', '')
             is_internal = glob.get('is_private', False)
             
+            # Static Bypass for Constants (prevents LLM hallucinations on BANNED_ADJECTIVES)
+            if name.isupper():
+                description = f"Defines global constant `{name}`."
+                if "CONFIG" in name or "SETTING" in name:
+                    description = f"Defines configuration constant `{name}`."
+                
+                self._add_entry(context, name, description, is_internal, file_path)
+                working_memory.append(f"Global `{name}`: {description}")
+                continue
+
+            # TaskExecutor for complex globals (e.g. calculated values)
             prompt = "Identify the specific data structure or literal value assigned in this statement."
             log_label = f"{module_name}:{name}"
             summary = self._analyze_mechanism(
@@ -54,24 +110,27 @@ class ComponentAnalyst:
             source = func.get('source_code', '')
             
             relevant_context = [base_scope_context]
-            usages = usage_map.get(name, [])
-            if usages:
-                relevant_context.insert(0, f"Caller Context: Used by {', '.join(usages[:3])}")
+            
+            # NOTE: Caller Context removed to prevent Intent-over-Mechanism bias.
+            
+            # Fix: Skip nested functions to prevent double-counting
+            # The parent function's analysis intentionally covers its internal helpers.
+            if func.get("nesting_level", 0) > 0:
+                continue
 
+            
             dep_context = self._resolve_dependency_context(name, interactions, dep_contexts)
             if dep_context:
                 relevant_context.append(f"Dependency Context:\n{dep_context}")
 
             log_label = f"{module_name}:{name}"
-            prompt = """
-            Task: Analyze the MECHANISM, INVARIANTS, and SIDE EFFECTS.
-            Constraint: If you find a Side Effect or Invariant, you MUST explicitly state it.
-            """
+            # Fix: Simple, direct prompt to prevent model over-thinking or leakage.
+            # Fix: Simple, direct prompt to prevent model over-thinking or leakage.
+            prompt = f"Describe what `{name}` does."
 
             summary = self._analyze_mechanism(
                 "Function", name, source, 
                 prompt_override=prompt,
-                forbidden_terms=[name] if name != "main" else [], 
                 scope_context="\n".join(relevant_context),
                 log_label=log_label
             )
@@ -87,11 +146,9 @@ class ComponentAnalyst:
             raw_class_source = class_data.get('source_code', '')
             clean_class_source = self._get_logic_only_source(raw_class_source)
             
-            # --- FIX: EXTRACT STATE FROM __init__ (The Truth) ---
-            # Corrected logic: Use signature parsing since 'name' key is missing
+            # --- EXTRACT STATE FROM __init__ ---
             init_method = None
             for m in methods:
-                # Use robust extraction matching the rest of the file
                 sig_name = m.get('signature', '').split('(')[0].replace('def ', '').strip()
                 if sig_name == '__init__':
                     init_method = m
@@ -107,6 +164,7 @@ class ComponentAnalyst:
                 source = method.get('source_code', '')
                 clean_method_source = self._get_logic_only_source(source)
                 
+                # Check for Abstract/Interface patterns statically
                 is_abstract = False
                 if ("pass" in clean_method_source or "..." in clean_method_source) and len(clean_method_source.split()) < 5:
                     is_abstract = True
@@ -117,16 +175,15 @@ class ComponentAnalyst:
                     action = "Defines interface signature (Abstract)."
                 else:
                     log_label = f"{module_name}:{class_name}.{m_name}"
-                    m_prompt = "Describe the actions performed by this method, including any side effects or state mutations. Start directly with the verb."
+                    log_label = f"{module_name}:{class_name}.{m_name}"
+                    m_prompt = "Describe this method."
                     
                     # --- INJECT STATE CONTEXT ---
-                    # The method is analyzed knowing the Class State it mutates.
                     combined_context = f"{base_scope_context}\n\n{class_state_context}"
                     
                     action = self._analyze_mechanism(
                         "Method", f"{class_name}.{m_name}", source,
                         prompt_override=m_prompt,
-                        forbidden_terms=["init"],
                         scope_context=combined_context, 
                         log_label=log_label
                     )
@@ -155,138 +212,61 @@ class ComponentAnalyst:
             
         return working_memory
 
-    def generate_module_skeleton(self, source_code: str) -> str:
-        try:
-            tree = ast.parse(source_code)
-        except:
-            return source_code 
-
-        class SkeletonTransformer(ast.NodeTransformer):
-            def visit_FunctionDef(self, node):
-                new_node = node
-                new_node.body = [ast.Expr(value=ast.Constant(value=Ellipsis))]
-                return new_node
-
-            def visit_AsyncFunctionDef(self, node):
-                new_node = node
-                new_node.body = [ast.Expr(value=ast.Constant(value=Ellipsis))]
-                return new_node
-
-            def visit_ClassDef(self, node):
-                # Strip Docstrings
-                if ast.get_docstring(node):
-                    node.body = node.body[1:]
-                    if not node.body:
-                        node.body.append(ast.Pass())
-                self.generic_visit(node)
-                return node
-
-        transformer = SkeletonTransformer()
-        new_tree = transformer.visit(tree)
-        try:
-            return ast.unparse(new_tree)
-        except:
-            return source_code
-
     def _get_logic_only_source(self, source_code: str) -> str:
         """
-        Removes docstrings to prevent 'Prompt Poisoning' by marketing fluff in comments.
+        Removes docstrings to prevent 'Prompt Poisoning'.
+        Updated to use ast.Constant for Py3.8+ compatibility.
         """
         try:
             parsed = ast.parse(source_code)
             for node in ast.walk(parsed):
                 if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef, ast.Module)):
-                    if ast.get_docstring(node):
-                        node.body = node.body[1:] 
-                        if not node.body:
-                            node.body.append(ast.Pass())
+                    # Check for docstring (first item is Expr -> Constant(str))
+                    if node.body and isinstance(node.body[0], ast.Expr) and isinstance(node.body[0].value, ast.Constant):
+                        if isinstance(node.body[0].value.value, str):
+                            node.body.pop(0)
+                            if not node.body:
+                                node.body.append(ast.Pass())
             return ast.unparse(parsed)
         except:
             return source_code
 
-    def _analyze_mechanism(self, type_label: str, name: str, source: str, forbidden_terms: List[str] = [], prompt_override: str = None, scope_context: str = "", log_label: str = "General") -> str:
+    def _analyze_mechanism(self, type_label: str, name: str, source: str, prompt_override: str = None, scope_context: str = "", log_label: str = "General") -> str:
         
         clean_source = self._get_logic_only_source(source)
 
-        specific_task = prompt_override if prompt_override else f"Analyze the PURPOSE and MECHANISM of this {type_label}."
+        main_goal = prompt_override if prompt_override else f"Analyze the PURPOSE and MECHANISM of this {type_label}."
         
-        prompt = f"""
-### ROLE
-You are a Technical Code Analyst.
-
-### CONTEXT
-{scope_context}
-
-### INPUT CODE
-Code Logic:
-```python
-{clean_source}
-```
-
-### TASK
-Generate a JSON object with a "description" field that describes the PURPOSE and MECHANISM of this code.
-{specific_task}
-
-### REQUIREMENTS
-1. Output strictly valid JSON with key "description".
-2. Start directly with a VERB (e.g. "Manages", "Parses").
-3. Do NOT use the name "{name}". Do not even mention that you are avoiding it.
-4. Description must be at least 5 words long.
-5. If the code contains Regex or Windows paths, ESCAPE backslashes.
-6. **CRITICAL: Describe ONLY the local logic.**
-   - If the code calls a function, state that it "Calls X" or "Delegates to X".
-   - Do NOT describe the internal logic of the called function as if it were local.
-   - Example: If `run()` calls `clean_memory()`, describe it as "Calls memory cleaner", NOT "Cleans memory".
-
-### EXAMPLE
-Input Code: def add(a, b): return a + b
-Output: {{"description": "Calculates the sum of two inputs and returns the result."}}
-"""
+        # Combine Source and Context for the TaskExecutor
+        # EXPLICIT SEPARATION to prevent Hallucination of Context as Action
+        context_data = f"### TARGET CODE (Analyze this strictly)\n{clean_source}\n\n### REFERENCE CONTEXT (Definitions/Globals - DO NOT ANALYZE)\n{scope_context}"
         
-        return self.gatekeeper.execute_with_feedback(
-            prompt, 
-            "description", 
-            forbidden_terms, 
-            verification_source=f"{clean_source}\n\n--- Context ---\n{scope_context}", 
-            log_context=log_label
+        # Use TaskExecutor to Plan-Solve-Refine
+        summary = self.task_executor.solve_complex_task(
+            main_goal=main_goal,
+            context_data=context_data,
+            log_label=log_label
         )
+        
+        return summary if summary else f"{type_label} analysis failed."
 
     def _synthesize_class_role(self, class_name: str, method_summaries: List[str], clean_source: str = "", log_label: str = "General") -> str:
         methods_block = chr(10).join(method_summaries)
         
-        prompt = f"""
-### ROLE
-You are a Technical Code Analyst.
-
-### CONTEXT
-Class Name: `{class_name}`
-Method Summaries:
-{methods_block}
-
-### TASK
-Generate a JSON object with a "role" field that synthesizes the structural role of this Class.
-1. Start with a VERB (e.g. "Manages", "Encapsulates").
-2. Describe what state/data this class owns based on the methods.
-
-### REQUIREMENTS
-1. Output strictly valid JSON with key "role".
-2. Do NOT use the class name "{class_name}". Do not even mention that you are avoiding it.
-3. Do NOT use marketing adjectives (e.g. "efficient", "seamless", "robust", "facilitate").
-4. Description must be at least 5 words long.
-
-### EXAMPLE
-Input Methods:
-- add: Adds item to list
-- get: Returns item from list
-Output: {{"role": "Manages a collection of items and provides access to them."}}
-"""
-        return self.gatekeeper.execute_with_feedback(
-            prompt, 
-            "role", 
-            forbidden_terms=[], 
-            verification_source=clean_source,
-            log_context=log_label
+        # Verified Pipeline Goal: Simple instruction
+        main_goal = f"Summarize the responsibility of Class `{class_name}`. If it has an `__init__`, describe what attributes it initializes. Start directly with the summary."
+        
+        # We pass the method summaries as the 'Code Context' for the synthesizer
+        context_data = f"Class Name: {class_name}\n\nMethod Summaries:\n{methods_block}\n\nCRITICAL: Do not repeat the instruction 'Describe the structural purpose'. Start with the class name or a verb."
+        
+        # Use TaskExecutor (now with Verified Pipeline)
+        summary = self.task_executor.solve_complex_task(
+            main_goal=main_goal,
+            context_data=context_data,
+            log_label=log_label
         )
+        
+        return summary if summary else f"Class {class_name} role synthesis failed."
 
     def _add_entry(self, ctx: ModuleContext, name: str, text: str, is_internal: bool, file_path: str):
         display = f"🔒 {name}" if is_internal else f"🔌 {name}"
@@ -315,6 +295,9 @@ Output: {{"role": "Manages a collection of items and provides access to them."}}
                         break
                 
                 if not found_symbol and upstream_ctx.module_role.text:
-                    context_lines.append(f"- Uses `{target_mod}`: {upstream_ctx.module_role.text}")
+                    role_text = upstream_ctx.module_role.text
+                    # Strip existing "Uses X" prefix from role if present to avoid "Uses X: Uses X"
+                    role_text = re.sub(r"^Uses\s+`?" + re.escape(target_mod) + r"`?[:\s]*", "", role_text, flags=re.IGNORECASE).strip()
+                    context_lines.append(f"- Uses `{target_mod}`: {role_text}")
 
         return "\n".join(list(set(context_lines)))

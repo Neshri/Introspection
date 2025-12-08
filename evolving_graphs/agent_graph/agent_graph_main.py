@@ -30,6 +30,7 @@ def main(goal: str, target_folder: str) -> str:
     # Run the agent
     agent.run()
     # TODO: Implement the rest of the function
+    # just send back goal for now.
     return f"Agent run completed for goal: {goal}"
 
 if __name__ == "__main__":

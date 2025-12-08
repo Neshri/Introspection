@@ -72,9 +72,10 @@ class DependencyAnalyst:
                 upstream_context_str = ""
                 if relevant_entries:
                     upstream_context_str = "\nRelevant Upstream Context:\n" + "\n".join([clean_ref(s) for s in relevant_entries])
-                elif general_context:
-                    # Fallback: If we can't match symbols perfectly, show general exports so the LLM isn't flying blind.
-                    upstream_context_str = "\nGeneral Exports (Unused/Unmatched):\n" + "\n".join([clean_ref(s) for s in general_context])
+                else:
+                    # STRICT FIX: Do NOT show general exports if no symbols matches. 
+                    # This prevents the LLM from hallucinating usage of random API methods.
+                    upstream_context_str = "\nRelevant Upstream Context: (No direct symbol usage matches public API)"
 
                 # --- 4. Prepare Snippet Evidence ---
                 raw_snippets = [i.get('snippet', '') for i in interactions if i['target_module'] == dep_name and i.get('snippet')]
@@ -98,18 +99,25 @@ class DependencyAnalyst:
                     # We ask the LLM to determine the nature of the usage (Data vs Logic) based on evidence,
                     # rather than forcing it to fill a specific bucket.
                     intent = self.task_executor.solve_complex_task(
-                        main_goal=f"Analyze the snippets to determine strictly how `{module_name}` utilizes `{dep_name}`. Specify if it accesses data, invokes logic, or inherits classes.",
-                        context_data=verification_source,
+                        main_goal=f"Describe how `{dep_name}` is used based on the snippets. Keep it under 15 words. Start with a verb (e.g. 'Instantiates class...', 'Calls function...').",
+                        context_data=usage_context,
                         log_label=f"{label}:Usage"
                     )
                     
                     # Filter out non-answers
-                    if intent and "no evidence" not in intent.lower() and "unverified" not in intent.lower():
-                        intents.append(intent)
+                    if intent:
+                        # Strip "Uses X" prefix if the LLM adds it despite instructions
+                        clean_intent = re.sub(r"^Uses\s+`?" + re.escape(dep_name) + r"`?[:\s]*", "", intent, flags=re.IGNORECASE).strip()
+                        # Also strip "Imports X"
+                        clean_intent = re.sub(r"^Imports\s+`?" + re.escape(dep_name) + r"`?[:\s]*", "", clean_intent, flags=re.IGNORECASE).strip()
+                        
+                        if clean_intent and "no evidence" not in clean_intent.lower() and "unverified" not in clean_intent.lower():
+                             intents.append(clean_intent)
 
                 if not intents:
                     explanation = f"Imports `{dep_name}`."
                 else:
+                    # Fix: Ensure we don't double prefix if multiple intents exist
                     explanation = f"Uses `{dep_name}`: {'; '.join(intents)}."
 
             context.add_dependency_context(dep_path, explanation, [Claim(explanation, f"Import {dep_name}", file_path)])

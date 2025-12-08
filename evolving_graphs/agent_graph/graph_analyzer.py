@@ -16,14 +16,8 @@ class CodeEntityVisitor(cst.CSTVisitor):
         self.cross_module_interactions = []
         
         self.entities = {"functions": [], "classes": {}, "globals": []}
-        
-        # Stack to track context names (unchanged)
         self.current_context = []
-        
-        # New: Stack to track Definition Headers (Signatures/Class Defs)
-        # This ensures we have a valid snippet even when outside a SimpleStatementLine
         self.header_stack = []
-        
         self.current_statement = None
 
     def visit_Import(self, node: cst.Import) -> None:
@@ -53,15 +47,29 @@ class CodeEntityVisitor(cst.CSTVisitor):
         imported_path_base = os.path.normpath(os.path.join(base_path, module_name_str.replace('.', os.sep)))
         
         potential_file_path = f"{imported_path_base}.py"
+        target_file = None
+
         if potential_file_path in self.all_project_files:
-            self.relative_imports.add(potential_file_path)
-            if isinstance(node.names, (list, tuple)):
-                for name_node in node.names: self.import_map[name_node.name.value] = potential_file_path
+            target_file = potential_file_path
+            self.relative_imports.add(target_file)
         elif os.path.isdir(imported_path_base) and isinstance(node.names, (list, tuple)):
+            # Fallback for 'from . import module'
+            pass
+
+        # FIX 1: Handle Aliases correctly
+        if isinstance(node.names, (list, tuple)):
             for name_node in node.names:
-                imported_file = os.path.join(imported_path_base, f"{name_node.name.value}.py")
-                if imported_file in self.all_project_files:
-                    self.relative_imports.add(imported_file); self.import_map[name_node.name.value] = imported_file
+                # Determine local name (alias or original)
+                local_name = name_node.asname.name.value if name_node.asname else name_node.name.value
+                
+                if target_file:
+                    self.import_map[local_name] = target_file
+                elif os.path.isdir(imported_path_base):
+                    # Check if the imported name is actually a file in the directory
+                    imported_file = os.path.join(imported_path_base, f"{name_node.name.value}.py")
+                    if imported_file in self.all_project_files:
+                        self.relative_imports.add(imported_file)
+                        self.import_map[local_name] = imported_file
 
     def visit_Assign(self, node: cst.Assign) -> None:
         if len(self.current_context) > 0: return
@@ -100,8 +108,17 @@ class CodeEntityVisitor(cst.CSTVisitor):
                 if isinstance(stmt, cst.SimpleStatementLine) and len(stmt.body) == 1:
                     actual_stmt = stmt.body[0]
                     if isinstance(actual_stmt, cst.Pass): return True
-                    if isinstance(actual_stmt, cst.Raise) and isinstance(actual_stmt.exc, cst.Name) and actual_stmt.exc.value == "NotImplementedError":
-                        return True
+                    
+                    # FIX 2: Handle both 'raise NotImplementedError' and 'raise NotImplementedError()'
+                    if isinstance(actual_stmt, cst.Raise):
+                        exc = actual_stmt.exc
+                        # Case A: raise NotImplementedError
+                        if isinstance(exc, cst.Name) and exc.value == "NotImplementedError":
+                            return True
+                        # Case B: raise NotImplementedError(...)
+                        if isinstance(exc, cst.Call) and isinstance(exc.func, cst.Name) and exc.func.value == "NotImplementedError":
+                            return True
+                            
         return False
 
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
@@ -109,13 +126,10 @@ class CodeEntityVisitor(cst.CSTVisitor):
         class_source = self.module_node.code_for_node(node)
         docstring = node.get_docstring()
         
-        # --- NEW: Reconstruct Header for Snippet Context ---
-        # "class Name(Base1, Base2):"
         bases = [self.module_node.code_for_node(b.value) for b in node.bases]
         bases_str = f"({', '.join(bases)})" if bases else ""
         header = f"class {node.name.value}{bases_str}:"
         self.header_stack.append(header)
-        # ---------------------------------------------------
         
         self.entities["classes"][node.name.value] = {
             "source_code": class_source,
@@ -125,7 +139,7 @@ class CodeEntityVisitor(cst.CSTVisitor):
 
     def leave_ClassDef(self, original_node: cst.ClassDef) -> None:
         self.current_context.pop()
-        self.header_stack.pop() # Exit header context
+        self.header_stack.pop()
 
     def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
         self.current_context.append(node.name.value)
@@ -135,9 +149,7 @@ class CodeEntityVisitor(cst.CSTVisitor):
         returns = f" -> {self.module_node.code_for_node(node.returns.annotation)}" if node.returns else ""
         signature = f"def {node.name.value}({params}){returns}:"
         
-        # --- NEW: Push Signature to Stack ---
         self.header_stack.append(signature)
-        # ------------------------------------
         
         docstring = node.get_docstring()
         is_unimplemented = self._analyze_function_body(node)
@@ -153,7 +165,9 @@ class CodeEntityVisitor(cst.CSTVisitor):
             "docstring": docstring,
             "source_code": func_source,
             "is_unimplemented": is_unimplemented,
-            "is_private": is_private
+            "is_private": is_private,
+            # nesting_level: 0 = Top Level, >0 = Nested inside another function
+            "nesting_level": len([x for x in self.current_context[:-1] if x not in self.entities["classes"]])
         }
 
         is_method = len(self.current_context) > 1 and self.current_context[-2] in self.entities["classes"]
@@ -167,7 +181,7 @@ class CodeEntityVisitor(cst.CSTVisitor):
     def leave_FunctionDef(self, original_node: cst.FunctionDef) -> None:
         if self.current_context:
             self.current_context.pop()
-        self.header_stack.pop() # Exit header context
+        self.header_stack.pop()
         
     def visit_SimpleStatementLine(self, node: cst.SimpleStatementLine) -> None:
         self.current_statement = node
@@ -180,21 +194,15 @@ class CodeEntityVisitor(cst.CSTVisitor):
             target_module_path = self.import_map[symbol]
             context = ".".join(self.current_context) or "module_level"
             
-            # --- FIXED SNIPPET RESOLUTION ---
             snippet_str = ""
-            
             if self.current_statement:
-                # Case 1: Standard line of code
                 snippet_str = self.module_node.code_for_node(self.current_statement)
             elif self.header_stack:
-                # Case 2: In a Function Signature or Class Definition (Type Hint/Inheritance)
                 snippet_str = self.header_stack[-1]
             else:
-                # Case 3: Fallback (should rarely happen if stack is managed right)
                 snippet_str = self.module_node.code_for_node(node)
                 
             snippet = snippet_str.strip().replace('\n', ' ')
-            # --------------------------------
             
             self.cross_module_interactions.append({
                 "context": context, 
