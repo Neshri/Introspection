@@ -1,5 +1,6 @@
 import os
 import ast
+import re
 from typing import List, Dict, Any
 from .semantic_gatekeeper import SemanticGatekeeper
 from .task_executor import TaskExecutor
@@ -124,7 +125,6 @@ class ComponentAnalyst:
                 relevant_context.append(f"Dependency Context:\n{dep_context}")
 
             log_label = f"{module_name}:{name}"
-            # Fix: Simple, direct prompt to prevent model over-thinking or leakage.
             # Fix: Simple, direct prompt to prevent model over-thinking or leakage.
             prompt = f"Describe what `{name}` does."
 
