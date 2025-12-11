@@ -1,180 +1,162 @@
-# Evolving Graphs: Autonomous AI Agent Genome
+# agent_graph: Code Understanding Agent
 
-## Introduction
+## Overview
 
-Evolving Graphs is a self-contained autonomous AI agent system implementing a structured evolutionary approach to code generation and architectural compliance. The system operates as a "Genome" within the `/evolving_graphs/` directory, containing two primary Graphs: `agent_graph` and `linter_graph`.
+agent_graph is a hybrid code analysis agent that uses AST-based static analysis for precise structural mapping, combined with LLM-based verification to generate grounded documentation. It prioritizes traceability by linking every description back to a specific code hash, allowing users to audit the AI's understanding.
 
-The `agent_graph` translates natural language goals into executable Python code through an iterative pipeline of specialized intelligence services, ensuring safe execution and continuous improvement. The `linter_graph` maintains architectural integrity by enforcing shallow, AI-friendly rules across the entire Genome.
+## Architecture
 
-### Genome Structure
-- **Root Directory**: `/evolving_graphs/` (the complete Genome)
-- **Graphs**: Direct subdirectories containing designated entry points
-- **Entry Points**: `[graph_name]_main.py` files for each Graph
-- **Modules**: Semantic naming convention `domain_responsibility.py`
-- **Constraints**: Shallow architecture (no nested subdirectories), 3000 token limit per module, empty `__init__.py` files
+The codebase follows structural standards:
+- Shallow architecture (max depth 1)
+- No cross-graph imports
+- Atomic modules with semantic naming
+- Generated documentation from code structure analysis
 
-## Architecture Overview
+## Components
 
-The Genome adheres to **Scientific Standards** designed for objective verification and autonomous evolution:
-- **Directed Acyclic Graph (DAG)**: Strictly acyclic dependencies.
-- **Shallow Architecture**: Max depth of 1. No deep nesting.
-- **Strict Isolation**: No cross-graph imports.
-- **Atomic Modules**: Max 3000 tokens per module.
-- **Code is Truth**: Documentation is derived from code structure, not comments.
+### Agent Graph (`evolving_graphs/agent_graph/`)
 
-## Graphs Description
-
-### Agent Graph (`agent_graph/`)
 **Entry Point**: `agent_graph_main.py`
-**Purpose**: An autonomous "Crawler" agent that explores, analyzes, and evolves the codebase.
 
-#### Core Infrastructure
-- `agent_core.py`: The `CrawlerAgent` that orchestrates the analysis loop.
-- `agent_config.py`: Centralized configuration (Models, Limits).
-- `agent_util.py`: `ProjectSummarizer` and `project_pulse` for graph analysis.
-- `memory_core.py`: Persistent memory management (ChromaDB wrapper).
+**Core Components**:
+- `agent_core.py`: CrawlerAgent implementation
+- `agent_config.py`: Configuration (DEFAULT_MODEL = "granite4:3b")
+- `memory_core.py`: ChromaDB wrapper for persistent storage
+- `report_renderer.py`: Project analysis report generation
 
-#### Introspection Engine (The Eyes)
-A subsystem that generates the "Objective Truth" Project Map (`PROJECT_MAP.md`).
-- `graph_analyzer.py`: Statically analyzes code to build the dependency graph (AST-based).
-- `module_classifier.py`: Classifies modules by structural role (Service vs Data).
-- `module_contextualizer.py`: Translates code logic into reasoning-ready English.
-- `report_renderer.py`: Renders the map, grouped by Archetype.
-- `summary_models.py`: Data structures for Claims and Context.
-- `component_analyst.py`: Detailed analysis of classes and functions.
-- `dependency_analyst.py`: Analysis of module interactions.
-- `map_critic.py`: Self-correction loop for documentation quality.
+**Analysis Engine**:
+- `graph_analyzer.py`: AST-based dependency mapping (structural analysis)
+- `module_classifier.py`: Structural role analysis
+- `module_contextualizer.py`: Code logic translation to natural language
+- `component_analyst.py`: Class and function analysis
+- `dependency_analyst.py`: Module interaction analysis
+- `semantic_gatekeeper.py`: Analysis quality assurance
+- `task_executor.py`: Goal-oriented analysis orchestration
 
-### Linter Graph (`linter_graph/`)
+### Linter Graph (`evolving_graphs/linter_graph/`)
+
 **Entry Point**: `linter_graph_main.py`
-**Purpose**: Automated enforcement of Structural Invariants (DAG, Size, Depth).
 
-## Setup and Installation
+Validates architectural compliance:
+- Import compliance and documentation requirements
+- File size optimization
+- Code duplication detection
+- Entry point clarity
+- Cross-graph isolation
+- Structural conformance
+
+### Log Analyzer Graph (`evolving_graphs/loganalyzer_graph/`)
+
+**Entry Point**: `loganalyzer_graph_main.py`
+
+Log analysis implementation (architecture in place).
+
+## Setup
 
 ### Prerequisites
-- Python 3.7 or higher
-- Ollama installed and running locally
-- Required Ollama model: `gemma3:4b-it-qat` (configurable in `evolving_graphs/agent_graph/agent_config.py`)
+- Python 3.7+
+- Ollama installed and running
+- Required model: `granite4:3b` (configured in `evolving_graphs/agent_graph/agent_config.py`)
 
-### Installation Steps
+### Installation
 
-1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd <project-directory>
-   ```
-
-2. Install Python dependencies:
+1. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
 
-3. Start Ollama service and pull the required model:
+2. Start Ollama and pull model:
    ```bash
-   # Start Ollama (if not running)
    ollama serve
-
-   # Pull the configured model
-   ollama pull gemma3:4b-it-qat
+   ollama pull granite4:3b
    ```
 
-4. Verify installation:
+3. Verify installation:
    ```bash
-   # Test the linter
    python -m evolving_graphs.linter_graph.linter_graph_main
-
-   # Test the agent with a simple goal
-   python -m evolving_graphs.agent_graph.agent_graph_main --goal "Create a hello world function"
+   python -m evolving_graphs.agent_graph.agent_graph_main --goal "Analyze project structure" --target_folder "/path/to/project"
    ```
 
 ## Usage
 
-### Running the Agent Graph
-
-The agent is designed to be run via the `run_graphs.py` orchestrator, which handles sandboxing and execution.
+### Running the Agent
 
 ```python
-# run_graphs.py
 from evolving_graphs.agent_graph.agent_graph_main import main
-from evolving_graphs.sandboxer_graph.sandboxer_graph_main import main as sandboxer_main
 
-# 1. Create a sandbox
-sandbox_path = sandboxer_main("agent_graph")
-
-# 2. Run the agent in the sandbox
-agent_result = main("Your Goal Here", sandbox_path)
+result = main("Analyze project structure", "/path/to/target")
+print(result)
 ```
 
-To run it directly from the command line (for testing):
-```bash
-python -m evolving_graphs.agent_graph.agent_graph_main --goal "Your Goal" --target_folder "/path/to/target"
-```
-
-The agent will:
-- Validate and persist the goal (10-500 characters, no dangerous patterns)
-- Load existing session state if available
-- Execute the scout→planner→executor→verifier→commit pipeline iteratively
-- Generate, test, and refine code through safe sandboxed execution
-- Save progress and learned patterns automatically
-
-### Running the Linter Graph
-
-Check architectural compliance:
+### Running the Linter
 
 ```bash
-# Check entire Genome
 python -m evolving_graphs.linter_graph.linter_graph_main
-
-# Check specific file
-python -m evolving_graphs.linter_graph.linter_graph_main evolving_graphs/agent_graph/agent_graph_main.py
 ```
 
-The linter validates:
-- Import compliance and mandatory signposts
-- File size limits (3000 tokens)
-- Code duplication (DRY principle)
-- Entry point designation
-- Orchestrator privilege patterns
-- Cross-Graph import restrictions
-- Structural conformance
+## System Components and Limitations
 
-### Workflow Integration
+**What Each Component Actually Does:**
 
-- **Development**: Use agent for autonomous code generation, linter for compliance validation
-- **Evolution**: Agent creates child Genomes in `candidates/` subdirectories via recursive evolution protocol
-- **Monitoring**: Observe detailed pipeline execution through console output
-- **Interruption**: Ctrl+C preserves state for resumable sessions
-- **Learning**: Memory system improves performance based on successful patterns
+1. **AST Analysis (Deterministic)**: Provides precise structural mapping of code relationships without hallucination. This includes dependency graphs, import analysis, and structural classification.
+
+2. **LLM Synthesis (Probabilistic)**: Generates semantic descriptions and natural language explanations. These descriptions CAN hallucinate and should be treated as interpretations rather than facts.
+
+3. **Verification System**: Provides provenance tracking by linking descriptions to specific code hashes, allowing audit of AI understanding. This tracks WHAT was analyzed, not WHETHER the analysis is correct.
+
+**System Limitations:**
+- LLM-generated descriptions may contain factual errors, misinterpretations, or hallucinations
+- AST analysis is deterministic but limited to structural relationships
+- "Verification" only proves traceability to source code, not correctness of interpretations
+- Formatting errors and meta-commentary hallucinations still occur
+- System links descriptions to code hashes but doesn't prevent semantic misinterpretation
+
+**What This System Actually Solves:**
+- Provides deterministic structural analysis of code relationships
+- Offers traceable AI-generated descriptions linked to specific code locations
+- Enables auditability of AI understanding through hash-based provenance
+
+**What This System Doesn't Solve:**
+- Does not eliminate LLM hallucinations in generated descriptions
+- Does not guarantee correctness of semantic interpretations
+- Does not replace human code review or validation
+
+**Completed Components**:
+- Module graph analysis
+- Dependency graph generation using deterministic AST analysis
+- Code logic understanding and contextualization
+- Project report rendering
+- ChromaDB memory management
+- Architectural compliance validation
 
 ## Dependencies
 
 ### Core Dependencies
-- **ollama**: Local LLM integration for AI model interactions
-- **chromadb**: Persistent memory database (located at project root `/memory_db/`)
+- **ollama**: Local LLM integration
+- **chromadb**: Persistent memory database (stored at `./chroma_db`)
 
 ### System Requirements
 - Python 3.7+
 - Ollama runtime environment
-- Local LLM model support (Ollama)
+- Local LLM model support
 
-## Contributing
+## Development
 
-Contributions must adhere to Genome architectural rules defined in `rules.md`. All changes require:
+Contributions must adhere to architectural rules defined in `rules.md`:
 
-1. Passing all linter checks: `python -m evolving_graphs.linter_graph.linter_graph_main`
-2. Maintaining shallow architecture (modules in root or direct subdirectories only)
-3. Including explanatory comments on all relative imports
-4. Keeping modules under 3000 tokens
-5. Avoiding code duplication (DRY enforcement)
-6. Following semantic naming (`domain_responsibility.py`)
-7. Ensuring empty `__init__.py` files
-8. Graph decoupling (no cross-Graph imports)
+1. Pass linter checks: `python -m evolving_graphs.linter_graph.linter_graph_main`
+2. Maintain shallow architecture
+3. Follow semantic naming (`domain_responsibility.py`)
+4. Ensure empty `__init__.py` files
+5. No cross-graph imports
 
-### Development Workflow
-1. Make changes within Genome structure
-2. Run linter: `python -m evolving_graphs.linter_graph.linter_graph_main`
-3. Test with agent goals
-4. Update documentation as needed
+## Technical Configuration
+
+- **Memory Database**: ChromaDB configured for `./chroma_db`
+- **Default Model**: `granite4:3b` in `agent_config.py`
+- **Context Limit**: 4096 tokens
+- **Analysis Method**: Hybrid system using deterministic AST analysis + probabilistic LLM descriptions
+- **Quality Assurance**: Verification provides provenance tracking, not correctness validation
 
 ## License
 
