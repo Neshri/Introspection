@@ -148,7 +148,7 @@ class SemanticGatekeeper:
             if word_count < min_words:
                 return False, f"Critique: Response too short ({word_count} words). Please describe in at least {min_words} words."
 
-        if len(text_raw) < 5: return False, "Critique: Response too short."
+        if len(text_raw) < 2: return False, "Critique: Response too short."
         return True, "Valid"
 
     def _extract_balanced_json(self, text: str) -> Optional[str]:

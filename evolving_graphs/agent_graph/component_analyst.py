@@ -237,10 +237,15 @@ class ComponentAnalyst:
 
         main_goal = prompt_override if prompt_override else f"Analyze the PURPOSE and MECHANISM of this {type_label}."
         
-        # Combine Source and Context for the TaskExecutor
-        # EXPLICIT SEPARATION to prevent Hallucination of Context as Action
-        context_data = f"### TARGET CODE (Analyze this strictly)\n{clean_source}\n\n### REFERENCE CONTEXT (Definitions/Globals - DO NOT ANALYZE)\n{scope_context}"
-        
+        # --- FIX: RECENCY BIAS OPTIMIZATION ---
+        # 1. Reference Context goes FIRST (as a primer/dictionary).
+        # 2. Target Code goes LAST (closest to the LLM's "Answer this" instruction).
+        context_data = (
+            f"### REFERENCE CONTEXT (Definitions/Globals - DO NOT ANALYZE)\n"
+            f"{scope_context}\n\n"
+            f"### TARGET CODE (Analyze this strictly)\n"
+            f"{clean_source}"
+        )
         # Use TaskExecutor to Plan-Solve-Refine
         summary = self.task_executor.solve_complex_task(
             main_goal=main_goal,
