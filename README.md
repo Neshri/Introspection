@@ -8,6 +8,7 @@ agent_graph is a hybrid code analysis agent that uses AST-based static analysis 
 
 The codebase follows structural standards:
 - Shallow architecture (max depth 1)
+- Acyclic dependency
 - No cross-graph imports
 - Atomic modules with semantic naming
 - Generated documentation from code structure analysis
