@@ -32,14 +32,3 @@ def main(goal: str, target_folder: str) -> str:
     # TODO: Implement the rest of the function
     # just send back goal for now.
     return f"Agent run completed for goal: {goal}"
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="")
-    parser.add_argument("--goal", required=True, help="The objective string.")
-    parser.add_argument("--target_folder", required=True, help="The absolute path to the target folder.")
-    args = parser.parse_args()
-    goal = args.goal
-    target_folder = args.target_folder
-
-    result = main(goal, target_folder)
-    print(result)
