@@ -6,6 +6,7 @@ from typing import Set, Dict, List, Optional
 from .semantic_gatekeeper import SemanticGatekeeper, BANNED_ADJECTIVES
 from .summary_models import ModuleContext, Claim
 from .task_executor import TaskExecutor
+from .module_classifier import ModuleArchetype
 
 class DependencyAnalyst:
     def __init__(self, gatekeeper: SemanticGatekeeper, task_executor: TaskExecutor):
@@ -18,6 +19,30 @@ class DependencyAnalyst:
         # Remove banned words case-insensitively
         pattern = r'\b(' + '|'.join(BANNED_ADJECTIVES) + r')\b'
         return re.sub(pattern, '', text, flags=re.IGNORECASE).strip()
+
+    def _get_archetype_guidance(self, caller_type: str, callee_type: str) -> str:
+        """Returns specific guidance based on architectural relationship."""
+        c_type = (caller_type or "").lower()
+        u_type = (callee_type or "").lower()
+        
+        guidance = ""
+        
+        if "service" in c_type:
+            if "data model" in u_type:
+               guidance = "RELATIONSHIP: Service managing Data.\nFOCUS: Passive usage (Defines, Imports, Instantiates). AVOID: Active mutation words like 'Populates' or 'Manages' unless explicit actions are seen."
+            elif "service" in u_type or "agent" in u_type:
+               guidance = "RELATIONSHIP: Service to Service.\nFOCUS: Delegation (Delegates, Orchestrates, Triggers, Coordinates)."
+            elif "utility" in u_type:
+               guidance = "RELATIONSHIP: Service using Utility.\nFOCUS: Transformation (Formats, Parses, Calculates)."
+        
+        elif "entry point" in c_type:
+             if "service" in u_type:
+                guidance = "RELATIONSHIP: Entry Point to Service.\nFOCUS: Initialization (Initializes, Runs, Configures)."
+                
+        if not guidance:
+            guidance = "RELATIONSHIP: General Dependency.\nFOCUS: Functional Purpose (why is it needed?)."
+            
+        return guidance
 
     def analyze_dependencies(self, context: ModuleContext, dependencies: Set[str], dep_contexts: Dict[str, ModuleContext], module_name: str, file_path: str, interactions: list = []):
         """
@@ -88,7 +113,22 @@ class DependencyAnalyst:
                 usage_context = f"Used Symbols: {', '.join(used_symbols)}{snippet_text}" if used_symbols else "Used Symbols: (None detected)"
 
                 # Unified verification source
-                verification_source = f"Dependency Role: {child_role}\n{upstream_context_str}\n{usage_context}"
+                
+                # --- ARCHETYPE GUIDANCE ---
+                caller_arch = context.archetype
+                upstream_arch = upstream_ctx.archetype if upstream_ctx else "Unknown"
+                guidance = self._get_archetype_guidance(caller_arch, upstream_arch)
+                
+                few_shot = """
+                ### EXAMPLES
+                Bad: "Uses `User` class." (Too generic)
+                Bad: "Imports `User` from `models.py`." (Implementation detail)
+                Bad: "Populates `Context` object." (If only importing/instantiating)
+                Good: "Instantiates `User` class to validate credentials."
+                Good: "Delegates token parsing to `TokenService`."
+                """
+
+                verification_source = f"Dependency Role: {child_role}\n{upstream_context_str}\n{usage_context}\n\n{guidance}\n{few_shot}"
                 label = f"Dep:{module_name}->{dep_name}"
 
                 # --- 5. Execute Plan-and-Solve Analysis ---
@@ -99,8 +139,8 @@ class DependencyAnalyst:
                     # We ask the LLM to determine the nature of the usage (Data vs Logic) based on evidence,
                     # rather than forcing it to fill a specific bucket.
                     intent = self.task_executor.solve_complex_task(
-                        main_goal=f"Describe how `{dep_name}` is used based on the snippets. Keep it under 15 words. Start with a verb (e.g. 'Instantiates class...', 'Calls function...').",
-                        context_data=usage_context,
+                        main_goal=f"Describe the HIGH-LEVEL PURPOSE of `{dep_name}` within `{module_name}`. Avoid generic terms like 'Uses', 'Calls', 'Imports'. Focus on *why* it is being used.",
+                        context_data=verification_source,
                         log_label=f"{label}:Usage"
                     )
                     
