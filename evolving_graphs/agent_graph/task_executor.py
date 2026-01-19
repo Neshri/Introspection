@@ -45,27 +45,55 @@ class TaskExecutor:
         return str(data)
 
     def _verify_grounding_hard(self, answer: str, source_code: str) -> Optional[str]:
+        # 1. Smart Grounding for Backticked Entities
         claimed_entities = re.findall(r'`([^`]+)`', answer)
-        if not claimed_entities: return None
-
         missing_entities = []
+        
         for entity in claimed_entities:
             clean_entity = entity.replace("()", "").strip()
             if not clean_entity: continue
-
+            
+            # Skip special chars
             if re.search(r'[\\#\*\?\[\]\(\)\{\}]', clean_entity):
                 continue
 
-            if re.match(r'^\w+$', clean_entity):
-                pattern = r'\b' + re.escape(clean_entity) + r'\b'
-                if not re.search(pattern, source_code):
-                    missing_entities.append(entity)
-            else:
-                if clean_entity not in source_code:
-                    missing_entities.append(entity)
+            # Support Dot-Notation (e.g. `agent.run` passes if `agent` OR `run` exists)
+            parts = clean_entity.split('.')
+            found_any = False
+            for part in parts:
+                if not part: continue
+                if re.search(r'\b' + re.escape(part) + r'\b', source_code):
+                    found_any = True
+                    break
+            
+            if not found_any:
+                # Fallback: Check exact substring if it's not just word chars
+                if not re.match(r'^\w+$', clean_entity) and clean_entity in source_code:
+                     found_any = True
+            
+            if not found_any:
+                missing_entities.append(entity)
 
         if missing_entities:
             return f"GUARDRAIL FAILURE: You cited {missing_entities}, but these identifiers do not exist in the source code."
+
+        # 2. Heuristic: Catch Un-backticked Proper Nouns (Potential Classes)
+        # Only flag if the word matches a Class definition or Function definition in the source.
+        # This prevents flagging concepts like "LLM" or "Chroma" unless they are actual classes.
+        unbackticked = re.findall(r'(?<!^)(?<!\. )\b[A-Z][a-zA-Z0-9_]+\b', answer)
+        safe_words = {"The", "A", "An", "If", "When", "For", "In", "Return", "True", "False", "None", "Uses", "Imports"}
+        
+        suspicious = []
+        for w in unbackticked:
+            if w in safe_words: continue
+            # Check if it's actually a code entity definition
+            if re.search(r'class\s+' + re.escape(w) + r'\b', source_code) or \
+               re.search(r'def\s+' + re.escape(w) + r'\b', source_code):
+                suspicious.append(w)
+        
+        if suspicious:
+             return f"STYLE FAILURE: You mentioned {suspicious[:3]} without backticks. These match code definitions (Classes/Functions). Wrap them in backticks."
+
         return None
 
     def _heuristic_audit(self, answer: str) -> Optional[str]:
@@ -237,7 +265,7 @@ class TaskExecutor:
         Rewrite the ORIGINAL sentence to be concrete.
         You MUST explicitly mention the EVIDENCE (using backticks).
         
-        Return JSON: {{ "answer": "The module uses `{evidence}` to..." }}
+        Return JSON: {{ "answer": "Use exact evidence to describe the action." }}
         """
         
         rew_raw = self.gatekeeper.execute_with_feedback(
@@ -287,10 +315,11 @@ class TaskExecutor:
             2. Ignore guard clauses.
             3. Use backticks for code elements (e.g., `process()`).
             4. Do NOT mention instructions in the output (e.g. "without repeating").
-            5. Return VALID JSON.
+            5. Do NOT start with "The function" or "The module". Start with a VERB.
+            6. Return VALID JSON.
             
             ### EXAMPLE OUTPUT
-            {{ "answer": "The function uses `process_data` to filter input." }}
+            {{ "answer": "Filters input using `process_data`." }}
             
             ### YOUR RESPONSE
             """

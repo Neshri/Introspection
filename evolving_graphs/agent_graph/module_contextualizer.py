@@ -335,7 +335,10 @@ class ModuleContextualizer:
             role_text = "Analysis failed to generate a role description."
         
         # --- SAFEGUARD: PREFIX STRIPPING ---
-        role_text = re.sub(r"^(The module|This module|The class|This class|It)\s+\w+\s+", "", role_text, flags=re.IGNORECASE)
+        # Strip "The module X", "The class X", "The X module/class", "It"
+        role_text = re.sub(r"^(The|This)\s+(\w+\s+)?(module|class)\s+\w+\s+", "", role_text, flags=re.IGNORECASE)
+        role_text = re.sub(r"^(The|This)\s+(module|class)\s+", "", role_text, flags=re.IGNORECASE)
+        role_text = re.sub(r"^It\s+", "", role_text, flags=re.IGNORECASE)
         # Re-capitalize first letter
         if role_text:
             role_text = role_text[0].upper() + role_text[1:]

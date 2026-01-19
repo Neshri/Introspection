@@ -117,7 +117,9 @@ class DependencyAnalyst:
                 if not intents:
                     explanation = f"Imports `{dep_name}`."
                 else:
-                    # Fix: Ensure we don't double prefix if multiple intents exist
-                    explanation = f"Uses `{dep_name}`: {'; '.join(intents)}."
+                    # Fix: Remove redundant "Uses X" since output is keyed by module name
+                    # Fix: Strip trailing punctuation to prevent double periods
+                    cleaned_intents = [i.strip().rstrip('.') for i in intents]
+                    explanation = f"{'; '.join(cleaned_intents)}."
 
             context.add_dependency_context(dep_path, explanation, [Claim(explanation, f"Import {dep_name}", file_path)])
