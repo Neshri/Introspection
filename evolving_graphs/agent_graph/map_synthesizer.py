@@ -1,151 +1,119 @@
 import os
-from typing import Dict, List
+import json
 import logging
+from typing import Dict, List, Optional
 from .summary_models import ModuleContext
 from .semantic_gatekeeper import SemanticGatekeeper
 
 class MapSynthesizer:
     """
-    Synthesizes a high-level "System Architecture" overview using Flow-Based Synthesis.
+    Synthesizes a high-level "System Architecture" overview using a Generic Grounded approach.
+    Identifies key architectural anchors dynamically and weaves them into a cohesive narrative.
     """
     def __init__(self, gatekeeper: SemanticGatekeeper):
         self.gatekeeper = gatekeeper
 
-    def synthesize(self, contexts: Dict[str, ModuleContext], processing_order: List[str]) -> str:
+    def synthesize(self, contexts: Dict[str, ModuleContext], processing_order: List[str], goal: Optional[str] = None) -> str:
         """
-        Generates a cohesive system summary by analyzing the flow of data 
-        through the archetypes.
+        Main entry point for architecture synthesis.
         """
-        # 1. Group Modules by Archetype
-        groups = {
-            "Entry Point": [],
-            "Service": [],
-            "Utility": [],
-            "Data Model": [],
-            "Configuration": []
-        }
-        
-        # We need a quick lookup to see which layer a dependency belongs to
-        module_to_layer = {}
+        if not contexts:
+            return "No module contexts available for synthesis."
 
-        for path in processing_order:
-            if path not in contexts: continue
+        # 1. Identify Architectural Anchors dynamically
+        anchors = self._identify_anchors(contexts)
+        
+        # 2. Extract context for the anchors
+        anchor_details = []
+        for path in anchors:
             ctx = contexts[path]
-            archetype = ctx.archetype if ctx.archetype else "Utility"
-            
-            # Map raw archetype strings to our groups
-            target_group = "Utility"
-            if "Entry Point" in archetype: target_group = "Entry Point"
-            elif "Service" in archetype: target_group = "Service"
-            elif "Utility" in archetype: target_group = "Utility"
-            elif "Data" in archetype: target_group = "Data Model"
-            elif "Config" in archetype: target_group = "Configuration"
-            
-            groups[target_group].append(ctx)
-            module_to_layer[os.path.basename(path)] = target_group
+            name = os.path.basename(path)
+            role = ctx.module_role.text if ctx.module_role else "Core component."
+            archetype = ctx.archetype or "Utility"
+            # Include dependencies to help the LLM see the relationships
+            deps = [os.path.basename(d) for d in (ctx.key_dependencies or {}).keys()]
+            dep_str = f" interacts with {', '.join(deps)}" if deps else ""
+            anchor_details.append(f"- **{name}** ({archetype}): {role}{dep_str}")
 
-        # 2. Synthesize Each Group (Layer) with Connectivity Context
-        layer_summaries = {}
-        for group_name, modules in groups.items():
-            if not modules: continue
-            logging.info(f"Synthesizing Group: {group_name} ({len(modules)} modules)")
-            # We pass the module_to_layer map so the group summary knows 
-            # if it's talking to the Data Layer or the Utility Layer
-            layer_summaries[group_name] = self._synthesize_group(group_name, modules, module_to_layer)
+        # 3. List the "Supporting Cast" (everything else) for high-level context
+        supporting_cast = []
+        anchor_set = set(anchors)
+        for path in processing_order:
+            if path in anchor_set or path not in contexts: continue
+            supporting_cast.append(os.path.basename(path))
 
-        # 3. Synthesize Final System Overview (Merging logic)
-        return self._synthesize_system(layer_summaries)
+        # 4. Perform Single-Pass Grounded Synthesis
+        return self._run_grounded_synthesis(anchor_details, supporting_cast, goal)
 
-    def _synthesize_group(self, group_name: str, modules: List[ModuleContext], layer_map: Dict[str, str]) -> str:
-        # Prepare context list with dependency hints
-        module_details = []
-        
-        for m in modules:
-            name = os.path.basename(m.file_path)
-            role = m.module_role.text if m.module_role else "Role pending analysis."
+    def _identify_anchors(self, contexts: Dict[str, ModuleContext]) -> List[str]:
+        """
+        Dynamically identifies the 5-7 most significant modules to anchor the narrative.
+        Prioritizes Entry Points and high-gravity Orchestrators.
+        """
+        scores = {}
+        for path, ctx in contexts.items():
+            score = 0
+            archetype = (ctx.archetype or "").lower()
+            name = os.path.basename(path).lower()
             
-            # Extract distinct external interactions
-            interactions = set()
-            if m.key_dependencies:
-                for dep_path in m.key_dependencies.keys():
-                    dep_name = os.path.basename(dep_path)
-                    # If we know the layer of the dependency, note it
-                    if dep_name in layer_map and layer_map[dep_name] != group_name:
-                        target_layer = layer_map[dep_name]
-                        interactions.add(f"calls {target_layer} ({dep_name})")
+            # Entry Points get highest weight
+            if "entry" in archetype or "main" in name:
+                score += 100
+            # Orchestrators/Services get high weight
+            elif "service" in archetype or "core" in name or "orchestrator" in name:
+                score += 50
+            # Contextualizers/Analyzers
+            elif "analyst" in name or "context" in name or "analyzer" in name:
+                score += 30
             
-            interaction_str = f" -> Interactions: {', '.join(interactions)}" if interactions else ""
-            module_details.append(f"- **{name}**: {role}{interaction_str}")
-        
-        modules_text = "\n".join(module_details)
+            # Plus dependency gravity (how much it's used or uses)
+            score += len(ctx.key_dependencies or {}) * 2
+            
+            scores[path] = score
+            
+        # Select top 7 anchors
+        sorted_anchors = sorted(scores.keys(), key=lambda x: scores[x], reverse=True)
+        return sorted_anchors[:7]
+
+    def _run_grounded_synthesis(self, anchor_details: List[str], supporting_cast: List[str], goal: Optional[str]) -> str:
+        """
+        A single-pass, focused prompt to build a technical story from anchor modules.
+        """
+        anchors_text = "\n".join(anchor_details)
+        supporting_text = ", ".join(supporting_cast) if supporting_cast else "None"
+        goal_text = f"Project Goal: {goal}\n" if goal else ""
         
         prompt = f"""
         ### ROLE
-        You are a generic Systems Architect.
+        You are a Staff Software Architect.
 
-        ### INPUT DATA
-        Layer: {group_name}
-        Modules & Connectivity:
-        {modules_text}
+        ### CONTEXT
+        {goal_text}
+        
+        ### PRIMARY COMPONENTS (The Engine Room)
+        {anchors_text}
+
+        ### SECONDARY COMPONENTS
+        {supporting_text}
 
         ### TASK
-        Synthesize a functional summary of the {group_name} layer.
-        - Focus on **Responsibility**: What does this layer strictly own?
-        - Focus on **Connectivity**: explicitly mention which *other* layers this layer interacts with based on the input.
-        - Do not list modules one by one. Merge them into concepts (e.g., "The integration services handle...").
+        Synthesize a **System Architecture Narrative** (2-3 paragraphs).
+        Explain how these specific components collaborate to fulfill the Project Goal.
 
-        ### REQUIREMENTS
-        1. Output strictly valid JSON with key "summary".
-        2. Keep it under 80 words.
-        3. No marketing fluff ("seamless", "powerhouse").
+        ### WRITING GUIDELINES (TECHNICAL & CONCRETE)
+        1. **Directness**: Start by defining exactly what the system is based on its core components.
+        2. **Technical Grounding**: Use the provided module names and their specific roles. Focus on functional outcomes and architectural logic rather than simple data passing.
+        3. **Style**: Use professional, technical language. Avoid adjectives (e.g., "wonderful", "robust", "powerful") and marketing buzzwords. 
+        4. **Cohesion**: Ensure the narrative flows logically from input/orchestration to analysis and output. Do NOT use transition fillers like "Moreover", "Furthermore", or "Additionally".
+        5. **Format**: Use clean Markdown paragraphs. No headers, no lists.
+
+        ### OUTPUT REQUIREMENT
+        Output strictly valid JSON with key "architecture_overview". The value should be the Markdown narrative.
         """
         
         return self.gatekeeper.execute_with_feedback(
             prompt, 
-            "summary", 
-            forbidden_terms=["seamless", "robust", "pivotal", "meticulous", "comprehensive"],
-            verification_source=modules_text,
-            log_context=f"GroupSynth:{group_name}"
-        )
-
-    def _synthesize_system(self, layer_summaries: Dict[str, str]) -> str:
-        layers_text = ""
-        # Logical flow for the prompt to read
-        order = ["Configuration", "Data Model", "Utility", "Service", "Entry Point"]
-        
-        for name in order:
-            if name in layer_summaries:
-                layers_text += f"[{name} Layer]: {layer_summaries[name]}\n"
-        
-        prompt = f"""
-        ### ROLE
-        You are a Technical Documentation Specialist.
-
-        ### INPUT DATA
-        Architecture Components:
-        {layers_text}
-
-        ### TASK
-        Write a cohesive **System Architecture Narrative**.
-        Instead of describing layers in isolation, describe the **flow of data and control** through the system.
-
-        ### WRITING STRATEGY (MERGE, DON'T LIST)
-        1. Start with the **Foundation** (Config/Data) to establish what the system is built on.
-        2. Move to the **Application Logic** (Service/Utility) to show how data is manipulated.
-        3. End with the **Execution** (Entry Point) to show how the user triggers these flows.
-        4. Use transition phrases like "This data structure is then utilized by...", "Supported by the utility layer...", "acting as the gateway..."
-
-        ### REQUIREMENTS
-        1. Output strictly valid JSON with key "overview".
-        2. The value must be a single MARKDOWN string (3 paragraphs max).
-        3. **CRITICAL**: Do not use headers (##). Just text paragraphs.
-        4. Do NOT use marketing adjectives (seamless, robust, bespoke).
-        """
-        
-        return self.gatekeeper.execute_with_feedback(
-            prompt, 
-            "overview", 
-            forbidden_terms=["seamless", "robust", "pivotal", "meticulous", "bespoke", "symphony"], 
-            verification_source=layers_text,
-            log_context="SystemSynth"
+            "architecture_overview", 
+            forbidden_terms=["moreover", "furthermore", "additionally", "robust", "seamless", "pivotal", "meticulous", "insight", "unfolds", "journey"],
+            log_context="GroundedSynthesis"
         )

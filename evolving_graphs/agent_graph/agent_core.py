@@ -25,7 +25,7 @@ class CrawlerAgent:
         # 2. Synthesize System Architecture
         gatekeeper = SemanticGatekeeper()
         synthesizer = MapSynthesizer(gatekeeper)
-        system_summary = synthesizer.synthesize(project_map, processing_order)
+        system_summary = synthesizer.synthesize(project_map, processing_order, goal=self.goal)
         
         # 3. Render the report instead of printing raw objects
         renderer = ReportRenderer(project_map, system_summary=system_summary)
