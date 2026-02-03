@@ -1,9 +1,11 @@
 import os
 import re
 import libcst as cst
+from libcst.metadata import PositionProvider
 import logging
 
 class CodeEntityVisitor(cst.CSTVisitor):
+    METADATA_DEPENDENCIES = (PositionProvider,)
     def __init__(self, file_path: str, all_project_files: set, module_node: cst.Module):
         self.file_path = file_path
         self.all_project_files = all_project_files
@@ -77,11 +79,14 @@ class CodeEntityVisitor(cst.CSTVisitor):
             if isinstance(target.target, cst.Name):
                 name = target.target.value
                 source = self.module_node.code_for_node(node)
+                pos = self.get_metadata(PositionProvider, node)
                 self.entities["globals"].append({
                     "name": name,
                     "source_code": source,
                     "signature": f"{name} = ...",
-                    "is_private": name.startswith("_")
+                    "is_private": name.startswith("_"),
+                    "lineno": pos.start.line,
+                    "end_lineno": pos.end.line
                 })
 
     def visit_AnnAssign(self, node: cst.AnnAssign) -> None:
@@ -89,11 +94,14 @@ class CodeEntityVisitor(cst.CSTVisitor):
         if isinstance(node.target, cst.Name):
             name = node.target.value
             source = self.module_node.code_for_node(node)
+            pos = self.get_metadata(PositionProvider, node)
             self.entities["globals"].append({
                 "name": name,
                 "source_code": source,
                 "signature": f"{name}: {self.module_node.code_for_node(node.annotation.annotation)} = ...",
-                "is_private": name.startswith("_")
+                "is_private": name.startswith("_"),
+                "lineno": pos.start.line,
+                "end_lineno": pos.end.line
             })
 
     def _analyze_function_body(self, node: cst.FunctionDef) -> bool:
@@ -134,7 +142,9 @@ class CodeEntityVisitor(cst.CSTVisitor):
         self.entities["classes"][node.name.value] = {
             "source_code": class_source,
             "docstring": docstring,
-            "methods": []
+            "methods": [],
+            "lineno": self.get_metadata(PositionProvider, node).start.line,
+            "end_lineno": self.get_metadata(PositionProvider, node).end.line
         }
 
     def leave_ClassDef(self, original_node: cst.ClassDef) -> None:
@@ -167,7 +177,9 @@ class CodeEntityVisitor(cst.CSTVisitor):
             "is_unimplemented": is_unimplemented,
             "is_private": is_private,
             # nesting_level: 0 = Top Level, >0 = Nested inside another function
-            "nesting_level": len([x for x in self.current_context[:-1] if x not in self.entities["classes"]])
+            "nesting_level": len([x for x in self.current_context[:-1] if x not in self.entities["classes"]]),
+            "lineno": self.get_metadata(PositionProvider, node).start.line,
+            "end_lineno": self.get_metadata(PositionProvider, node).end.line
         }
 
         is_method = len(self.current_context) > 1 and self.current_context[-2] in self.entities["classes"]
@@ -243,8 +255,9 @@ class GraphAnalyzer:
         try:
             with open(abs_path, 'r', encoding='utf-8') as f: source_code = f.read()
             module_node = cst.parse_module(source_code)
+            wrapper = cst.metadata.MetadataWrapper(module_node)
             visitor = CodeEntityVisitor(abs_path, self.all_project_files, module_node)
-            module_node.visit(visitor)
+            wrapper.visit(visitor)
             todos = self._find_todos(source_code)
             
             module_docstring = module_node.get_docstring()

@@ -8,11 +8,11 @@ from .summary_models import ModuleContext, Claim
 
 class SkeletonTransformer(ast.NodeTransformer):
     """
-    Strips function bodies and class docstrings to create a token-efficient skeleton.
+    Strips class docstrings and optionally function bodies to create a token-efficient skeleton.
     Updated to use ast.Constant for Python 3.8+ compatibility.
     """
-    # Removed visit_FunctionDef and visit_AsyncFunctionDef to preserve function bodies.
-    # The LLM needs to see the implementation to avoid hallucinations.
+    def __init__(self, strip_bodies: bool = False):
+        self.strip_bodies = strip_bodies
 
 
     def _remove_docstring(self, node):
@@ -23,10 +23,14 @@ class SkeletonTransformer(ast.NodeTransformer):
 
     def visit_FunctionDef(self, node):
         self._remove_docstring(node)
+        if self.strip_bodies:
+            node.body = [ast.Pass()]
         return self.generic_visit(node)
 
     def visit_AsyncFunctionDef(self, node):
         self._remove_docstring(node)
+        if self.strip_bodies:
+            node.body = [ast.Pass()]
         return self.generic_visit(node)
 
     def visit_ClassDef(self, node):
@@ -43,10 +47,10 @@ class ComponentAnalyst:
         self.gatekeeper = gatekeeper
         self.task_executor = task_executor
 
-    def generate_module_skeleton(self, source_code: str) -> str:
+    def generate_module_skeleton(self, source_code: str, strip_bodies: bool = False) -> str:
         try:
             tree = ast.parse(source_code)
-            transformer = SkeletonTransformer()
+            transformer = SkeletonTransformer(strip_bodies=strip_bodies)
             new_tree = transformer.visit(tree)
             return ast.unparse(new_tree)
         except Exception:
@@ -88,11 +92,15 @@ class ComponentAnalyst:
                 if "CONFIG" in name or "SETTING" in name:
                     description = f"Defines configuration constant `{name}`."
                 
-                self._add_entry(context, name, description, is_internal, file_path)
+                lineno = glob.get('lineno', 0)
+                end_lineno = glob.get('end_lineno', 0)
+                self._add_entry(context, name, description, is_internal, file_path, lineno, end_lineno, source)
                 working_memory.append(f"Global `{name}`: {description}")
                 continue
 
             # TaskExecutor for complex globals (e.g. calculated values)
+            lineno = glob.get('lineno', 0)
+            end_lineno = glob.get('end_lineno', 0)
             prompt = "Identify the specific data structure or literal value assigned in this statement."
             log_label = f"{module_name}:{name}"
             summary = self._analyze_mechanism(
@@ -101,7 +109,7 @@ class ComponentAnalyst:
                 scope_context=base_scope_context, 
                 log_label=log_label
             )
-            self._add_entry(context, name, summary, is_internal, file_path)
+            self._add_entry(context, name, summary, is_internal, file_path, lineno, end_lineno, source)
             working_memory.append(f"Global `{name}`: {summary}")
 
         # --- Step 3: Analyze Functions ---
@@ -128,13 +136,15 @@ class ComponentAnalyst:
             # Fix: Simple, direct prompt to prevent model over-thinking or leakage.
             prompt = f"Describe what `{name}` does."
 
+            lineno = func.get('lineno', 0)
+            end_lineno = func.get('end_lineno', 0)
             summary = self._analyze_mechanism(
                 "Function", name, source, 
                 prompt_override=prompt,
                 scope_context="\n".join(relevant_context),
                 log_label=log_label
             )
-            self._add_entry(context, name, summary, is_internal, file_path)
+            self._add_entry(context, name, summary, is_internal, file_path, lineno, end_lineno, source)
             working_memory.append(f"Function `{name}`: {summary}")
 
         # --- Step 4: Analyze Classes ---
@@ -192,7 +202,9 @@ class ComponentAnalyst:
                 
                 method_display_name = f"🔌 {class_name}.{m_name}"
                 if not is_internal and not m_name.startswith('_'):
-                     self._add_entry(context, method_display_name, action, False, file_path)
+                     m_lineno = method.get('lineno', 0)
+                     m_end_lineno = method.get('end_lineno', 0)
+                     self._add_entry(context, method_display_name, action, False, file_path, m_lineno, m_end_lineno, source)
 
             if not method_summaries:
                 class_summary = f"Data container for {class_name} records."
@@ -207,7 +219,10 @@ class ComponentAnalyst:
             
             prefix = "class "
             display_name = f"🔒 {prefix}{class_name}" if is_internal else f"🔌 {prefix}{class_name}"
-            context.add_public_api_entry(display_name, class_summary, [Claim(class_summary, f"{prefix}{class_name}", file_path)])
+            c_lineno = class_data.get('lineno', 0)
+            c_end_lineno = class_data.get('end_lineno', 0)
+            claim = Claim(class_summary, f"{prefix}{class_name}", file_path, evidence_snippet=raw_class_source, line_range=(c_lineno, c_end_lineno))
+            context.add_public_api_entry(display_name, class_summary, [claim])
             working_memory.append(f"Class `{class_name}`: {class_summary}")
             
         return working_memory
@@ -273,9 +288,10 @@ class ComponentAnalyst:
         
         return summary if summary else f"Class {class_name} role synthesis failed."
 
-    def _add_entry(self, ctx: ModuleContext, name: str, text: str, is_internal: bool, file_path: str):
+    def _add_entry(self, ctx: ModuleContext, name: str, text: str, is_internal: bool, file_path: str, lineno: int = 0, end_lineno: int = 0, evidence: str = ""):
         display = f"🔒 {name}" if is_internal else f"🔌 {name}"
-        ctx.add_public_api_entry(display, text, [Claim(text, name, file_path)])
+        claim = Claim(text, name, file_path, evidence_snippet=evidence, line_range=(lineno, end_lineno))
+        ctx.add_public_api_entry(display, text, [claim])
 
     def _resolve_dependency_context(self, function_name: str, interactions: List[Dict], dep_contexts: Dict[str, ModuleContext]) -> str:
         context_lines = []

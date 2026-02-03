@@ -3,15 +3,15 @@ import json
 import logging
 from typing import Dict, List, Optional
 from .summary_models import ModuleContext
-from .semantic_gatekeeper import SemanticGatekeeper
+from .task_executor import TaskExecutor
 
 class MapSynthesizer:
     """
     Synthesizes a high-level "System Architecture" overview using a Generic Grounded approach.
     Identifies key architectural anchors dynamically and weaves them into a cohesive narrative.
     """
-    def __init__(self, gatekeeper: SemanticGatekeeper):
-        self.gatekeeper = gatekeeper
+    def __init__(self, task_executor: TaskExecutor):
+        self.executor = task_executor
 
     def synthesize(self, contexts: Dict[str, ModuleContext], processing_order: List[str], goal: Optional[str] = None) -> str:
         """
@@ -30,10 +30,22 @@ class MapSynthesizer:
             name = os.path.basename(path)
             role = ctx.module_role.text if ctx.module_role else "Core component."
             archetype = ctx.archetype or "Utility"
-            # Include dependencies to help the LLM see the relationships
+            
+            # Enrich with Public API to give the LLM concrete logic to describe
+            api_points = []
+            if ctx.public_api:
+                # Sort and take top 5 methods to avoid bloating context
+                sorted_api = sorted(ctx.public_api.items(), key=lambda x: x[0])[:5]
+                for entity, g_text in sorted_api:
+                    api_points.append(f"`{entity}`: {g_text.text}")
+            
+            api_str = f"\n  - Key Interfaces: {'; '.join(api_points)}" if api_points else ""
+            
+            # Include dependencies
             deps = [os.path.basename(d) for d in (ctx.key_dependencies or {}).keys()]
-            dep_str = f" interacts with {', '.join(deps)}" if deps else ""
-            anchor_details.append(f"- **{name}** ({archetype}): {role}{dep_str}")
+            dep_str = f"\n  - Interacts with: {', '.join(deps)}" if deps else ""
+            
+            anchor_details.append(f"### Component: {name} ({archetype})\n- **Role**: {role}{api_str}{dep_str}")
 
         # 3. List the "Supporting Cast" (everything else) for high-level context
         supporting_cast = []
@@ -42,7 +54,7 @@ class MapSynthesizer:
             if path in anchor_set or path not in contexts: continue
             supporting_cast.append(os.path.basename(path))
 
-        # 4. Perform Single-Pass Grounded Synthesis
+        # 4. Perform Grounded Synthesis using TaskExecutor Pipeline
         return self._run_grounded_synthesis(anchor_details, supporting_cast, goal)
 
     def _identify_anchors(self, contexts: Dict[str, ModuleContext]) -> List[str]:
@@ -77,43 +89,38 @@ class MapSynthesizer:
 
     def _run_grounded_synthesis(self, anchor_details: List[str], supporting_cast: List[str], goal: Optional[str]) -> str:
         """
-        A single-pass, focused prompt to build a technical story from anchor modules.
+        An audited, multi-pass synthesis to build a technical story from anchor modules.
         """
-        anchors_text = "\n".join(anchor_details)
+        anchors_text = "\n\n".join(anchor_details)
         supporting_text = ", ".join(supporting_cast) if supporting_cast else "None"
         goal_text = f"Project Goal: {goal}\n" if goal else ""
         
-        prompt = f"""
-        ### ROLE
-        You are a Staff Software Architect.
-
-        ### CONTEXT
-        {goal_text}
+        main_goal = """
+        Synthesize a cohesive 3-paragraph System Architecture Narrative.
         
-        ### PRIMARY COMPONENTS (The Engine Room)
-        {anchors_text}
+        Paragraph 1: THE ORCHESTRATION. Describe the primary entry points and the flow of control.
+        Paragraph 2: THE ANALYSIS LOGIC. Explain how data flows through the system and what technical transformations occur.
+        Paragraph 3: STABILITY & VERIFICATION. Describe how the system ensures accuracy and handles complexity or errors.
 
-        ### SECONDARY COMPONENTS
-        {supporting_text}
-
-        ### TASK
-        Synthesize a **System Architecture Narrative** (2-3 paragraphs).
-        Explain how these specific components collaborate to fulfill the Project Goal.
-
-        ### WRITING GUIDELINES (TECHNICAL & CONCRETE)
-        1. **Directness**: Start by defining exactly what the system is based on its core components.
-        2. **Technical Grounding**: Use the provided module names and their specific roles. Focus on functional outcomes and architectural logic rather than simple data passing.
-        3. **Style**: Use professional, technical language. Avoid adjectives (e.g., "wonderful", "robust", "powerful") and marketing buzzwords. 
-        4. **Cohesion**: Ensure the narrative flows logically from input/orchestration to analysis and output. Do NOT use transition fillers like "Moreover", "Furthermore", or "Additionally".
-        5. **Format**: Use clean Markdown paragraphs. No headers, no lists.
-
-        ### OUTPUT REQUIREMENT
-        Output strictly valid JSON with key "architecture_overview". The value should be the Markdown narrative.
+        STRICT REQUIREMENTS:
+        - Use technical, objective language. No marketing fluff (e.g., 'powerful', 'seamless').
+        - Focus on the COLLABORATION between components, not just a list.
+        - Start directly with the technical explanation. Do NOT say "This project is..." or "The architecture is...".
+        - Ensure the narrative is cohesive and flows naturally between paragraphs.
         """
         
-        return self.gatekeeper.execute_with_feedback(
-            prompt, 
-            "architecture_overview", 
-            forbidden_terms=["moreover", "furthermore", "additionally", "robust", "seamless", "pivotal", "meticulous", "insight", "unfolds", "journey"],
-            log_context="GroundedSynthesis"
+        # We wrap the prompt in the context format expected by TaskExecutor
+        context_data = f"""
+ARCHITECTURAL DATA:
+{anchors_text}
+
+SUPPORTING COMPONENTS: 
+{supporting_text}
+"""
+
+        # Using solve_complex_task gives us the Drafter-Auditor loop and grounding checks
+        return self.executor.solve_complex_task(
+            main_goal + " Use strictly technical language. No future-casting or marketing fluff.",
+            context_data,
+            log_label="GroundedSynthesis"
         )

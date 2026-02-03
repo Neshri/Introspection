@@ -7,6 +7,7 @@ from .summary_models import ModuleContext
 from .report_renderer import ReportRenderer
 from .map_synthesizer import MapSynthesizer
 from .semantic_gatekeeper import SemanticGatekeeper
+from .task_executor import TaskExecutor
 
 class CrawlerAgent:
     def __init__(self, goal: str, target_root: str):
@@ -24,11 +25,17 @@ class CrawlerAgent:
         
         # 2. Synthesize System Architecture
         gatekeeper = SemanticGatekeeper()
-        synthesizer = MapSynthesizer(gatekeeper)
+        executor = TaskExecutor(gatekeeper)
+        synthesizer = MapSynthesizer(executor)
         system_summary = synthesizer.synthesize(project_map, processing_order, goal=self.goal)
         
-        # 3. Render the report instead of printing raw objects
-        renderer = ReportRenderer(project_map, system_summary=system_summary)
+        # 3. Render the report into two files: Map and Verification Evidence
+        renderer = ReportRenderer(
+            project_map, 
+            output_file="PROJECT_MAP.md",
+            verification_file="PROJECT_VERIFICATION.md",
+            system_summary=system_summary
+        )
         renderer.render()
         
         current_turn = 0

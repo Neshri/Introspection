@@ -18,11 +18,13 @@ class Claim:
     text: str
     reference: str
     source_module: str
+    evidence_snippet: str = ""
+    line_range: Tuple[int, int] = (0, 0)
 
     @property
     def id(self) -> str:
         """Computes a stable and unique hash ID for the claim."""
-        unique_string = f"{self.text}|{self.reference}|{self.source_module}"
+        unique_string = f"{self.text}|{self.reference}|{self.source_module}|{self.evidence_snippet}|{self.line_range}"
         sha = hashlib.sha1(unique_string.encode()).hexdigest()
         return sha
 

@@ -4,6 +4,7 @@ import re
 import logging
 from typing import Optional, Any, Tuple
 from .semantic_gatekeeper import SemanticGatekeeper
+from .llm_util import truncate_context
 
 class TaskExecutor:
     def __init__(self, gatekeeper: SemanticGatekeeper):
@@ -146,8 +147,9 @@ class TaskExecutor:
         
         FAIL CONDITIONS:
         1. **Irrelevant:** Does not answer the GOAL based on the CONTEXT.
-        2. **Meta-Commentary:** Says "The method describes..." instead of "The method calculates...".
-        3. **Vague:** Uses generic words ("manages", "handles") without naming specific code elements.
+        2. **Meta-Commentary:** Says "The method describes..." or "is responsible for" instead of direct action (e.g. "Calculates...").
+        3. **Vague:** Uses generic words ("manages", "handles", "processes") without naming specific code elements.
+        4. **Un-Backticked Code:** Mentions function or class names without backticks.
         
         OUTPUT FORMAT:
         Return JSON.
@@ -196,8 +198,9 @@ class TaskExecutor:
         CLAIM: "{answer}"
         
         TASK: Verify strictly against the SOURCE CODE.
-        1. Are the described logic/variables actually present?
-        2. Did it hallucinate functionality?
+        1. Are the described logic/variables actually present and performing the stated action?
+        2. Did it hallucinate functionality or side effects not in the code?
+        3. Is the description technologically precise (e.g. "Initializes a dictionary" vs "Sets up data")?
         
         Return JSON: {{ "status": "PASS" }} or {{ "status": "FAIL", "reason": "Correction needed." }}
         """
@@ -277,6 +280,8 @@ class TaskExecutor:
     def solve_complex_task(self, main_goal: str, context_data: str, log_label: str) -> Optional[str]:
         try:
             logging.info(f"[{log_label}] STARTING TASK. Goal: {main_goal}")
+            # Ensure context fits within token limits
+            context_data = truncate_context(context_data)
             return self._run_goal_loop(main_goal, context_data, log_label)
         except Exception as e:
             logging.error(f"[{log_label}] CRASH: {e}", exc_info=True)

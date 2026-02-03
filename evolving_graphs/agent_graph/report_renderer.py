@@ -1,12 +1,13 @@
 import os
 import re
-from typing import Dict, List
+from typing import Dict, List, Tuple
 from .summary_models import ModuleContext
 
 class ReportRenderer:
-    def __init__(self, context_map: Dict[str, ModuleContext], output_file: str = "PROJECT_MAP.md", system_summary: str = ""):
+    def __init__(self, context_map: Dict[str, ModuleContext], output_file: str = "PROJECT_MAP.md", verification_file: str = "PROJECT_VERIFICATION.md", system_summary: str = ""):
         self.context_map = context_map
         self.output_file = output_file
+        self.verification_file = verification_file
         self.system_summary = system_summary
         self.claim_map = {} # Maps Claim ID -> Claim Object
         self.ref_counter = 1
@@ -15,40 +16,31 @@ class ReportRenderer:
         """
         Organizes and writes module documentation into output file
         """
-        lines = ["# Project Context Map", ""]
+        # Line buffers for both files
+        map_lines = ["# Project Context Map", ""]
+        verif_lines = ["# Project Verification Proof", "", "This document contains the AST-derived evidence and line ranges for all architectural claims.", ""]
         
         if self.system_summary:
-            lines.append("## 🏛️ System Architecture")
-            lines.append(self.system_summary)
-            lines.append("")
-            lines.append("---")
-            lines.append("")
+            map_lines.append("## 🏛️ System Architecture")
+            map_lines.append(self.system_summary)
+            map_lines.append("")
+            map_lines.append("---")
+            map_lines.append("")
             
-        lines.append(f"**Total Modules:** {len(self.context_map)}")
-        lines.append("")
+        map_lines.append(f"**Total Modules:** {len(self.context_map)}")
+        map_lines.append("")
         
-        # 1. Calculate Reverse Dependencies (Who uses what?)
-        # We allow this to be calculated dynamically to ensure accuracy
+        # 1. Calculate Reverse Dependencies
         module_dependents: Dict[str, set] = {k: set() for k in self.context_map}
-        
         for name, ctx in self.context_map.items():
             for dep_path in ctx.key_dependencies:
-                # Ensure we map the dependency back to the dependent
                 if dep_path in module_dependents:
                     module_dependents[dep_path].add(name)
         
-        # 2. Group by Archetype (Objective Truth Organization)
-        # We want a logical flow: Entry -> Service -> Utility -> Data -> Config
-        
+        # 2. Group by Archetype
         archetype_groups = {
-            "Entry Point": [],
-            "Service": [],
-            "Utility": [],
-            "Data Model": [],
-            "Configuration": []
+            "Entry Point": [], "Service": [], "Utility": [], "Data Model": [], "Configuration": []
         }
-        
-        # Fallback for unknown archetypes
         others = []
 
         for path, ctx in self.context_map.items():
@@ -58,7 +50,6 @@ class ReportRenderer:
             else:
                 others.append(path)
 
-        # Define the presentation order and icons
         presentation_order = [
             ("Entry Point", "🚀 Entry Points"),
             ("Service", "⚙️ Services"),
@@ -66,39 +57,42 @@ class ReportRenderer:
             ("Data Model", "📦 Data Models"),
             ("Configuration", "🔧 Configuration")
         ]
+        presentation_order.append(("Other", "📂 Other Modules"))
 
         # Render groups
         for arch_key, header in presentation_order:
-            paths = archetype_groups.get(arch_key, [])
+            if arch_key == "Other":
+                paths = others
+            else:
+                paths = archetype_groups.get(arch_key, [])
+            
             if not paths: continue
             
-            lines.append(f"## {header}")
-            lines.append("")
+            map_lines.append(f"## {header}")
+            map_lines.append("")
             
-            # Sort within group by name for consistency
             for path in sorted(paths):
                 ctx = self.context_map[path]
                 dependents = sorted(list(module_dependents.get(path, [])))
-                lines.extend(self._render_module(ctx, dependents))
-                lines.append("---")
-        
-        if others:
-            lines.append("## 📂 Other Modules")
-            lines.append("")
-            for path in sorted(others):
-                ctx = self.context_map[path]
-                dependents = sorted(list(module_dependents.get(path, [])))
-                lines.extend(self._render_module(ctx, dependents))
-                lines.append("---")
+                m_map, m_verif = self._render_module(ctx, dependents)
+                map_lines.extend(m_map)
+                map_lines.append("---")
+                verif_lines.extend(m_verif)
+                verif_lines.append("---")
         
         with open(self.output_file, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines))
+            f.write("\n".join(map_lines))
+        
+        with open(self.verification_file, "w", encoding="utf-8") as f:
+            f.write("\n".join(verif_lines))
         
         print(f"Report generated: {os.path.abspath(self.output_file)}")
+        print(f"Verification proof generated: {os.path.abspath(self.verification_file)}")
 
-    def _render_module(self, ctx: ModuleContext, dependents: List[str]) -> List[str]:
+    def _render_module(self, ctx: ModuleContext, dependents: List[str]) -> Tuple[List[str], List[str]]:
         name = os.path.basename(ctx.file_path)
-        lines = [f"## 📦 Module: `{name}`"]
+        map_lines = [f"## 📦 Module: `{name}`"]
+        verif_lines = [f"## 📦 Verification: `{name}`"]
         
         # Reference Management
         claim_map: Dict[str, int] = {}
@@ -113,64 +107,61 @@ class ReportRenderer:
 
         # Role
         role_text = ctx.module_role.text if ctx.module_role.text else "_No role defined._"
-        lines.append(f"**Role:** {replace_ref(role_text)}")
-        lines.append("")
+        map_lines.append(f"**Role:** {replace_ref(role_text)}")
+        map_lines.append("")
 
         # Alerts
         if ctx.alerts:
-            lines.append("### 🚨 Alerts")
+            map_lines.append("### 🚨 Alerts")
             for alert in ctx.alerts:
                 icon = "🔴" if alert.category == "Incomplete" else "TODO" if alert.category == "TODO" else "⚠️"
-                lines.append(f"- {icon} **{alert.category}**: {alert.description} `(Ref: {alert.reference})`")
-            lines.append("")
+                map_lines.append(f"- {icon} **{alert.category}**: {alert.description} `(Ref: {alert.reference})`")
+            map_lines.append("")
 
         # Interface & Logic
-        # Renamed to reflect that it now contains internal (🔒) logic
         if ctx.public_api:
-            lines.append("### 🧩 Interface & Logic")
-            
-            # Sort alphabetically. 
-            # Unicode: 🔌 (U+1F50C) < 🔒 (U+1F512)
-            # This naturally puts Public (Plug) before Private (Lock)
+            map_lines.append("### 🧩 Interface & Logic")
+            # Sort alphabetically. Unicode: 🔌 (U+1F50C) < 🔒 (U+1F512)
             sorted_entities = sorted(ctx.public_api.items(), key=lambda x: x[0])
-            
             for entity, g_text in sorted_entities:
-                lines.append(f"- **`{entity}`**: {replace_ref(g_text.text)}")
-            lines.append("")
+                map_lines.append(f"- **`{entity}`**: {replace_ref(g_text.text)}")
+            map_lines.append("")
 
-        # Upstream Dependencies (What I use)
+        # Upstream Dependencies
         if ctx.key_dependencies:
-            lines.append("### 🔗 Uses (Upstream)")
+            map_lines.append("### 🔗 Uses (Upstream)")
             for dep, g_text in ctx.key_dependencies.items():
                 dep_name = os.path.basename(dep)
-                lines.append(f"- **`{dep_name}`**: {replace_ref(g_text.text)}")
-            lines.append("")
+                map_lines.append(f"- **`{dep_name}`**: {replace_ref(g_text.text)}")
+            map_lines.append("")
 
-        # Downstream Dependents (Who uses me)
-        # Vital for Impact Analysis
+        # Downstream Dependents
         if dependents:
-            lines.append("### 👥 Used By (Downstream)")
+            map_lines.append("### 👥 Used By (Downstream)")
             for dep_path in dependents:
                 dep_name = os.path.basename(dep_path)
-                lines.append(f"- **`{dep_name}`**")
-            lines.append("")
+                map_lines.append(f"- **`{dep_name}`**")
+            map_lines.append("")
 
-        # Claims (Verification)
+        # Claims (Verification) - Only in verif_lines
         if claim_map:
-            lines.append("<details><summary><i>View Verification Claims</i></summary>")
-            lines.append("")
-            
-            # Sort by index
+            verif_lines.append("### 🆔 Verification Claims")
+            verif_lines.append("")
             sorted_claims = sorted(claim_map.items(), key=lambda x: x[1])
             
             for cid, index in sorted_claims:
                 if cid in ctx.claims:
                     claim = ctx.claims[cid]
-                    lines.append(f"> 🆔 `{cid[:6]}` [{index}]: {claim.text} _(Source: {replace_ref(claim.reference)})_")
+                    verif_lines.append(f"> 🆔 `{cid[:6]}` [{index}]: {claim.text} _(Source: {replace_ref(claim.reference)})_")
+                    if claim.evidence_snippet:
+                        verif_lines.append(f">   - **Evidence (L{claim.line_range[0]}-{claim.line_range[1]}):**")
+                        snippet_lines = claim.evidence_snippet.strip().split('\n')
+                        verif_lines.append(f">     ```python")
+                        for s_line in snippet_lines:
+                            verif_lines.append(f">     {s_line}")
+                        verif_lines.append(f">     ```")
                 else:
-                    lines.append(f"> 🆔 `{cid[:6]}` [{index}]: _Claim text missing_")
-            
-            lines.append("</details>")
-            lines.append("")
+                    verif_lines.append(f"> 🆔 `{cid[:6]}` [{index}]: _Claim text missing_")
+            verif_lines.append("")
 
-        return lines
+        return map_lines, verif_lines

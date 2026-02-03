@@ -108,7 +108,7 @@ class ProjectSummarizer:
                 # We can use the ReportRenderer to generate the string in memory if we refactor it,
                 # or just write to a temp file and read it back.
                 temp_map_path = "TEMP_PROJECT_MAP.md"
-                renderer = ReportRenderer(self.contexts, output_file=temp_map_path)
+                renderer = ReportRenderer(self.contexts, output_file=temp_map_path, verification_file=os.devnull)
                 renderer.render() # Writes to file
                 
                 with open(temp_map_path, "r", encoding="utf-8") as f:
@@ -209,6 +209,7 @@ def _create_module_context(path: str, graph: ProjectGraph, dep_contexts: Dict[st
         context = ModuleContext(file_path=path)
     logging.info(f"Generated context for module: {context}")
     return context
+
 
 
 
